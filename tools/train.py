@@ -73,6 +73,12 @@ def parse_args():
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--checkpoint', default=None, help='checkpoint file')
     parser.add_argument('--test_detection_set', default='val_detector')
+    parser.add_argument('--train_detection_set', default='train_detector')
+    parser.add_argument('--pseudo_label_path', default='')
+    parser.add_argument('--all_car', default=False)
+    parser.add_argument('--stat_as_ignore_region', default=False)
+    parser.add_argument('--filter_stat_before', default=False)
+
     parser.add_argument(
         '--score-thr', type=float, default=0.1, help='bbox score threshold')
     parser.add_argument(
@@ -154,6 +160,13 @@ def main():
         cfg.db_sampler['data_root2'] = args.data_root2
         cfg.db_sampler['info_path2'] = args.info_path2
         cfg.train_dataloader.dataset['dataset']['ann_file2'] = args.ann_file2
+    cfg.train_dataloader.dataset['detection_type'] = args.train_detection_set
+    cfg.train_dataloader.dataset['all_car'] = args.all_car
+    cfg.train_dataloader.dataset['stat_as_ignore_region'] = args.stat_as_ignore_region
+    cfg.train_dataloader.dataset['filter_stat_before'] = args.filter_stat_before
+
+    if args.pseudo_label_path != '':
+        cfg.train_dataloader.dataset['pseudo_labels'] = args.pseudo_label_path
     cfg.val_dataloader.dataset['percentage'] = float(args.percentage_val)
     cfg.test_dataloader.dataset['percentage'] = float(args.percentage_val)
     cfg.test_dataloader.dataset['detection_type'] = args.test_detection_set

@@ -27,4 +27,4 @@ python -m torch.distributed.launch \
     ${PERCENTAGE_TRAIN} \
     ${PERCENATGE_VAL} \
     --launcher pytorch ${@:5}
-~                                     
+   
