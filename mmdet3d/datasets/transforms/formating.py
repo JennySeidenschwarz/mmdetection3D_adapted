@@ -61,6 +61,8 @@ class Pack3DDetInputs(BaseTransform):
         'gt_semantic_seg'
     ]
 
+    IGNORE_INSTANCEDATA_3D_KEYS =['gt_bboxes_ignore']
+
     def __init__(
         self,
         keys: tuple,
@@ -170,7 +172,7 @@ class Pack3DDetInputs(BaseTransform):
                 results['img'] = img
 
         for key in [
-                'proposals', 'gt_bboxes', 'gt_bboxes_ignore', 'gt_labels',
+                'proposals', 'gt_bboxes', 'gt_labels', #'gt_bboxes_ignore',,
                 'gt_bboxes_labels', 'attr_labels', 'pts_instance_mask',
                 'pts_semantic_mask', 'centers_2d', 'depths', 'gt_labels_3d'
         ]:
@@ -183,17 +185,19 @@ class Pack3DDetInputs(BaseTransform):
         if 'gt_bboxes_3d' in results:
             if not isinstance(results['gt_bboxes_3d'], BaseInstance3DBoxes):
                 results['gt_bboxes_3d'] = to_tensor(results['gt_bboxes_3d'])
-
+        if 'gt_bboxes_ignore' in results:
+            if not isinstance(results['gt_bboxes_ignore'], BaseInstance3DBoxes):
+                results['gt_bboxes_ignore'] = to_tensor(results['gt_bboxes_ignore'])
         if 'gt_semantic_seg' in results:
             results['gt_semantic_seg'] = to_tensor(
                 results['gt_semantic_seg'][None])
         if 'gt_seg_map' in results:
             results['gt_seg_map'] = results['gt_seg_map'][None, ...]
-
         data_sample = Det3DDataSample()
         gt_instances_3d = InstanceData()
         gt_instances = InstanceData()
         gt_pts_seg = PointData()
+        ignored_instances = InstanceData() if 'gt_bboxes_ignore' in results else None
 
         data_metas = {}
         for key in self.meta_keys:
@@ -233,15 +237,18 @@ class Pack3DDetInputs(BaseTransform):
                         gt_instances[self._remove_prefix(key)] = results[key]
                 elif key in self.SEG_KEYS:
                     gt_pts_seg[self._remove_prefix(key)] = results[key]
+                elif key in self.IGNORE_INSTANCEDATA_3D_KEYS:
+                    ignored_instances['bboxes_3d'] = results[key]
                 else:
                     raise NotImplementedError(f'Please modified '
                                               f'`Pack3DDetInputs` '
                                               f'to put {key} to '
                                               f'corresponding field')
-
         data_sample.gt_instances_3d = gt_instances_3d
         data_sample.gt_instances = gt_instances
         data_sample.gt_pts_seg = gt_pts_seg
+        if 'gt_bboxes_ignore' in results:
+            data_sample.ignored_instances = ignored_instances
         if 'eval_ann_info' in results:
             data_sample.eval_ann_info = results['eval_ann_info']
         else:

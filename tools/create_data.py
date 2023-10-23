@@ -10,8 +10,19 @@ from tools.dataset_converters import semantickitti_converter
 from tools.dataset_converters.create_gt_database import (
     GTDatabaseCreater, create_groundtruth_database)
 from tools.dataset_converters.update_infos_to_v2 import update_pkl_infos
+'''
+import sys
+import traceback
 
+class TracePrints(object):
+  def __init__(self):
+    self.stdout = sys.stdout
+  def write(self, s):
+    self.stdout.write("Writing %r\n" % s)
+    traceback.print_stack(file=self.stdout)
 
+sys.stdout = TracePrints()
+'''
 def kitti_data_prep(root_path,
                     info_prefix,
                     version,
@@ -171,7 +182,10 @@ def waymo_data_prep(root_path,
                     version,
                     out_dir,
                     workers,
-                    max_sweeps=5):
+                    max_sweeps=5,
+                    detection_labels='new',
+                    only_txt=True,
+                    pre=1.0):
     """Prepare the info file for waymo dataset.
 
     Args:
@@ -183,33 +197,40 @@ def waymo_data_prep(root_path,
             Default: 5. Here we store pose information of these frames
             for later use.
     """
-    from tools.dataset_converters import waymo_converter as waymo
+    if not only_txt:
+        from tools.dataset_converters import waymo_converter as waymo
 
-    splits = [
-        'training', 'validation', 'testing', 'testing_3d_camera_only_detection'
-    ]
-    for i, split in enumerate(splits):
-        load_dir = osp.join(root_path, 'waymo_format', split)
-        if split == 'validation':
-            save_dir = osp.join(out_dir, 'kitti_format', 'training')
-        else:
-            save_dir = osp.join(out_dir, 'kitti_format', split)
-        converter = waymo.Waymo2KITTI(
-            load_dir,
-            save_dir,
-            prefix=str(i),
-            workers=workers,
-            test_mode=(split
-                       in ['testing', 'testing_3d_camera_only_detection']))
-        converter.convert()
-
-    from tools.dataset_converters.waymo_converter import \
-        create_ImageSets_img_ids
-    create_ImageSets_img_ids(osp.join(out_dir, 'kitti_format'), splits)
+        splits = [
+            'training', 'validation', 'testing', 'testing_3d_camera_only_detection'
+        ]
+        for i, split in enumerate(splits):
+            load_dir = osp.join(root_path, 'waymo_format', split)
+            if split == 'validation':
+                save_dir = osp.join(out_dir, 'kitti_format', 'training')
+            else:
+                save_dir = osp.join(out_dir, 'kitti_format', split)
+            converter = waymo.Waymo2KITTI(
+                load_dir,
+                save_dir,
+                prefix=str(i),
+                workers=workers,
+                test_mode=(split
+                        in ['testing', 'testing_3d_camera_only_detection']))
+            converter.convert()
+        quit()    
+        from tools.dataset_converters.waymo_converter import \
+            create_ImageSets_img_ids
+        create_ImageSets_img_ids(osp.join(out_dir, 'kitti_format'), splits)
+    
     # Generate waymo infos
     out_dir = osp.join(out_dir, 'kitti_format')
-    kitti.create_waymo_info_file(
-        out_dir, info_prefix, max_sweeps=max_sweeps, workers=workers)
+    
+    if only_txt:
+        kitti.create_waymo_info_file(
+            '/workspace/waymo_kitti_format/kitti_format', info_prefix, max_sweeps=max_sweeps, workers=workers, save_path=out_dir)
+    else:
+        kitti.create_waymo_info_file(
+            out_dir, info_prefix, max_sweeps=max_sweeps, workers=workers)
     info_train_path = osp.join(out_dir, f'{info_prefix}_infos_train.pkl')
     info_val_path = osp.join(out_dir, f'{info_prefix}_infos_val.pkl')
     info_trainval_path = osp.join(out_dir, f'{info_prefix}_infos_trainval.pkl')
@@ -218,14 +239,26 @@ def waymo_data_prep(root_path,
     update_pkl_infos('waymo', out_dir=out_dir, pkl_path=info_val_path)
     update_pkl_infos('waymo', out_dir=out_dir, pkl_path=info_trainval_path)
     update_pkl_infos('waymo', out_dir=out_dir, pkl_path=info_test_path)
-    GTDatabaseCreater(
-        'WaymoDataset',
-        out_dir,
-        info_prefix,
-        f'{info_prefix}_infos_train.pkl',
-        relative_path=False,
-        with_mask=False,
-        num_worker=workers).create()
+    
+    if only_txt:
+        GTDatabaseCreater(
+            'WaymoDataset',
+            '/workspace/waymo_kitti_format/kitti_format',
+            info_prefix,
+            f'{info_prefix}_infos_train.pkl',
+            relative_path=False,
+            with_mask=False,
+            num_worker=workers,
+            out_path=out_dir).create()
+    else:
+        GTDatabaseCreater(
+            'WaymoDataset',
+            out_dir,
+            info_prefix,
+            f'{info_prefix}_infos_train.pkl',
+            relative_path=False,
+            with_mask=False,
+            num_worker=workers).create()
 
 
 def semantickitti_data_prep(info_prefix, out_dir):
@@ -272,9 +305,14 @@ parser.add_argument('--extra-tag', type=str, default='kitti')
 parser.add_argument(
     '--workers', type=int, default=4, help='number of threads to be used')
 parser.add_argument(
-    '--only-gt-database',
+    '--only-gt-databse',
     action='store_true',
     help='Whether to only generate ground truth database.')
+parser.add_argument(
+    '--only_txt',
+    action='store_true',
+    help='Whether to only generate txt files.'
+)
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -282,7 +320,7 @@ if __name__ == '__main__':
     register_all_modules()
 
     if args.dataset == 'kitti':
-        if args.only_gt_database:
+        if args.only_gt_databse:
             create_groundtruth_database(
                 'KittiDataset',
                 args.root_path,
@@ -299,7 +337,7 @@ if __name__ == '__main__':
                 out_dir=args.out_dir,
                 with_plane=args.with_plane)
     elif args.dataset == 'nuscenes' and args.version != 'v1.0-mini':
-        if args.only_gt_database:
+        if args.only_gt_databse:
             create_groundtruth_database('NuScenesDataset', args.root_path,
                                         args.extra_tag,
                                         f'{args.extra_tag}_infos_train.pkl')
@@ -321,7 +359,7 @@ if __name__ == '__main__':
                 out_dir=args.out_dir,
                 max_sweeps=args.max_sweeps)
     elif args.dataset == 'nuscenes' and args.version == 'v1.0-mini':
-        if args.only_gt_database:
+        if args.only_gt_databse:
             create_groundtruth_database('NuScenesDataset', args.root_path,
                                         args.extra_tag,
                                         f'{args.extra_tag}_infos_train.pkl')
@@ -354,7 +392,8 @@ if __name__ == '__main__':
             version=args.version,
             out_dir=args.out_dir,
             workers=args.workers,
-            max_sweeps=args.max_sweeps)
+            max_sweeps=args.max_sweeps,
+            only_txt=args.only_txt)
     elif args.dataset == 'scannet':
         scannet_data_prep(
             root_path=args.root_path,

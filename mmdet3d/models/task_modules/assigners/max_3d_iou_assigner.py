@@ -122,7 +122,7 @@ class Max3DIoUAssigner(MaxIoUAssigner):
             priors = pred_instances.bboxes_3d.tensor
         gt_labels = gt_instances.labels_3d
         if gt_instances_ignore is not None:
-            gt_bboxes_ignore = gt_instances_ignore.bboxes_3d
+            gt_bboxes_ignore = gt_instances_ignore.bboxes_3d.tensor
         else:
             gt_bboxes_ignore = None
 
@@ -139,7 +139,7 @@ class Max3DIoUAssigner(MaxIoUAssigner):
 
         overlaps = self.iou_calculator(gt_bboxes, priors)
 
-        if (self.ignore_iof_thr > 0 and gt_bboxes_ignore is not None
+        if (self.ignore_iof_thr >= 0 and gt_bboxes_ignore is not None
                 and gt_bboxes_ignore.numel() > 0 and priors.numel() > 0):
             if self.ignore_wrt_candidates:
                 ignore_overlaps = self.iou_calculator(
@@ -149,7 +149,7 @@ class Max3DIoUAssigner(MaxIoUAssigner):
                 ignore_overlaps = self.iou_calculator(
                     gt_bboxes_ignore, priors, mode='iof')
                 ignore_max_overlaps, _ = ignore_overlaps.max(dim=0)
-            overlaps[:, ignore_max_overlaps > self.ignore_iof_thr] = -1
+            overlaps[:, ignore_max_overlaps >= self.ignore_iof_thr] = -1
 
         assign_result = self.assign_wrt_overlaps(overlaps, gt_labels)
         if assign_on_cpu:

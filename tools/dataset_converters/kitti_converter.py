@@ -176,11 +176,12 @@ def create_kitti_info_file(data_path,
         relative_path (bool, optional): Whether to use relative path.
             Default: True.
     """
+    print("YOYOYOYO")
     imageset_folder = Path(data_path) / 'ImageSets'
     train_img_ids = _read_imageset_file(str(imageset_folder / 'train.txt'))
     val_img_ids = _read_imageset_file(str(imageset_folder / 'val.txt'))
     test_img_ids = _read_imageset_file(str(imageset_folder / 'test.txt'))
-
+    
     print('Generate info. this may take several minutes.')
     if save_path is None:
         save_path = Path(data_path)
@@ -249,16 +250,19 @@ def create_waymo_info_file(data_path,
         max_sweeps (int, optional): Max sweeps before the detection frame
             to be used. Default: 5.
     """
+    print('YOYO')
     imageset_folder = Path(data_path) / 'ImageSets'
     train_img_ids = _read_imageset_file(str(imageset_folder / 'train.txt'))
     val_img_ids = _read_imageset_file(str(imageset_folder / 'val.txt'))
     test_img_ids = _read_imageset_file(str(imageset_folder / 'test.txt'))
 
     print('Generate info. this may take several minutes.')
+    print('here/13klfre')
     if save_path is None:
         save_path = Path(data_path)
     else:
         save_path = Path(save_path)
+    print('head')
     waymo_infos_gatherer_trainval = WaymoInfoGatherer(
         data_path,
         training=True,
@@ -268,6 +272,7 @@ def create_waymo_info_file(data_path,
         relative_path=relative_path,
         max_sweeps=max_sweeps,
         num_worker=workers)
+    print('shoulders')
     waymo_infos_gatherer_test = WaymoInfoGatherer(
         data_path,
         training=False,
@@ -284,21 +289,29 @@ def create_waymo_info_file(data_path,
         num_features=6,
         remove_outside=False,
         num_worker=workers)
-
+    print('there?!')
+    quit()
     waymo_infos_train = waymo_infos_gatherer_trainval.gather(train_img_ids)
+    print('Gathered train...')
     num_points_in_gt_calculater.calculate(waymo_infos_train)
+    print('Calculated...')
     filename = save_path / f'{pkl_prefix}_infos_train.pkl'
     print(f'Waymo info train file is saved to {filename}')
     mmengine.dump(waymo_infos_train, filename)
+    print('dumped...')
     waymo_infos_val = waymo_infos_gatherer_trainval.gather(val_img_ids)
+    print('Gathered val...')
     num_points_in_gt_calculater.calculate(waymo_infos_val)
+    print('Calculated...')
     filename = save_path / f'{pkl_prefix}_infos_val.pkl'
     print(f'Waymo info val file is saved to {filename}')
     mmengine.dump(waymo_infos_val, filename)
+    print('dumped...')
     filename = save_path / f'{pkl_prefix}_infos_trainval.pkl'
     print(f'Waymo info trainval file is saved to {filename}')
     mmengine.dump(waymo_infos_train + waymo_infos_val, filename)
     waymo_infos_test = waymo_infos_gatherer_test.gather(test_img_ids)
+    print('Gathered test...')
     filename = save_path / f'{pkl_prefix}_infos_test.pkl'
     print(f'Waymo info test file is saved to {filename}')
     mmengine.dump(waymo_infos_test, filename)

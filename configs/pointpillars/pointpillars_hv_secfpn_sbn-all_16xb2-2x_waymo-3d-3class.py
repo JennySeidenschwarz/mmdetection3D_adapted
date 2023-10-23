@@ -12,3 +12,6 @@ train_dataloader = dict(dataset=dict(dataset=dict(load_interval=1)))
 #       or not by default.
 #   - `base_batch_size` = (16 GPUs) x (2 samples per GPU).
 auto_scale_lr = dict(enable=False, base_batch_size=32)
+vis_backends = [dict(type='LocalVisBackend'), dict(type='WandbVisBackend')]
+visualizer = dict(
+    type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')

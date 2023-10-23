@@ -21,6 +21,7 @@ from typing import List, Optional
 import mmengine
 import numpy as np
 import tensorflow as tf
+import os
 
 
 class Prediction2Waymo(object):
@@ -60,7 +61,10 @@ class Prediction2Waymo(object):
                  workers: int = 2,
                  backend_args: Optional[dict] = None,
                  from_kitti_format: bool = False,
-                 idx2metainfo: Optional[dict] = None):
+                 idx2metainfo: Optional[dict] = None,
+                 detection_type=None,
+                 percentage=1.0,
+                 work_dir='work_dir'):
 
         self.results = results
         self.waymo_tfrecords_dir = waymo_tfrecords_dir
@@ -71,6 +75,10 @@ class Prediction2Waymo(object):
         self.workers = int(workers)
         self.backend_args = backend_args
         self.from_kitti_format = from_kitti_format
+        self.detection_type = detection_type
+        self.percentage = percentage
+        self.work_dir = work_dir
+
         if idx2metainfo is not None:
             self.idx2metainfo = idx2metainfo
             # If ``fast_eval``, the metainfo does not need to be read from
@@ -87,7 +95,7 @@ class Prediction2Waymo(object):
             'Sign': label_pb2.Label.TYPE_SIGN,
             'Cyclist': label_pb2.Label.TYPE_CYCLIST,
         }
-
+        # print('b', results[0], self.from_kitti_format)
         if self.from_kitti_format:
             self.T_ref_to_front_cam = np.array([[0.0, 0.0, 1.0, 0.0],
                                                 [-1.0, 0.0, 0.0, 0.0],
@@ -114,7 +122,7 @@ class Prediction2Waymo(object):
 
     def get_file_names(self):
         """Get file names of waymo raw data."""
-        if 'path_mapping' in self.backend_args:
+        if self.backend_args is not None and 'path_mapping' in self.backend_args:
             for path in self.backend_args['path_mapping'].keys():
                 if path in self.waymo_tfrecords_dir:
                     self.waymo_tfrecords_dir = \
@@ -131,7 +139,16 @@ class Prediction2Waymo(object):
         else:
             self.waymo_tfrecord_pathnames = sorted(
                 glob(join(self.waymo_tfrecords_dir, '*.tfrecord')))
-        print(len(self.waymo_tfrecord_pathnames), 'tfrecords found.')
+        
+        if self.detection_type is not None:
+            with open(f'new_seq_splits_Waymo_Converted_fixed_val/{self.percentage}_{self.detection_type}.txt', 'r') as f:
+                log_ids = f.read()
+                log_ids = log_ids.split('\n')
+            self.filtered_waymo_tfrecord_pathnames = [p for p in self.waymo_tfrecord_pathnames if\
+                    os.path.basename(p).split('-')[1].split('_')[0] in log_ids]
+        else:
+            self.filtered_waymo_tfrecord_pathnames = self.filtered_waymo_tfrecord_pathnames
+        print('xx', len(self.waymo_tfrecord_pathnames), 'tfrecords found.')
 
     def create_folder(self):
         """Create folder for data conversion."""
@@ -233,18 +250,24 @@ class Prediction2Waymo(object):
                 raise ImportError(
                     "Please run 'pip install tensorflow-io' to install tensorflow_io first."  # noqa: E501
                 )
+        
+        # if using subset for evaluation filter tf files
+        if file_pathname not in self.filtered_waymo_tfrecord_pathnames:
+            return
+
         file_data = tf.data.TFRecordDataset(file_pathname, compression_type='')
 
         for frame_num, frame_data in enumerate(file_data):
             frame = open_dataset.Frame()
             frame.ParseFromString(bytearray(frame_data.numpy()))
 
-            filename = f'{self.prefix}{file_idx:03d}{frame_num:03d}'
+            filename = str(int(f'{self.prefix}{file_idx:03d}{frame_num:03d}'))
+            # filename = f'{self.prefix}{file_idx:03d}{frame_num:03d}'
 
             context_name = frame.context.name
             frame_timestamp_micros = frame.timestamp_micros
-
             if filename in self.name2idx:
+                # print('found')
                 if self.from_kitti_format:
                     for camera in frame.context.camera_calibrations:
                         # FRONT = 1, see dataset.proto for details
@@ -266,13 +289,14 @@ class Prediction2Waymo(object):
                         frame_timestamp_micros)
 
             else:
-                print(filename, 'not found.')
+                # print(filename, 'not found.')
                 objects = metrics_pb2.Objects()
-
+            
             with open(
                     join(self.waymo_results_save_dir, f'{filename}.bin'),
                     'wb') as f:
                 f.write(objects.SerializeToString())
+        # print(type(filename), filename, type(list(self.name2idx.keys())[0]), list(self.name2idx.keys())[0])
 
     def convert_one_fast(self, res_index: int):
         """Convert action for single file. It read the metainfo from the
@@ -376,6 +400,9 @@ class Prediction2Waymo(object):
 
         with open(self.waymo_results_final_path, 'wb') as f:
             f.write(combined.SerializeToString())
+        print('save file to', f'{self.work_dir}/{self.percentage}_{self.detection_type}.bin') 
+        with open(f'{self.work_dir}/{self.percentage}_{self.detection_type}.bin', 'wb') as f:
+            f.write(combined.SerializeToString())
 
     def __len__(self):
         """Length of the filename list."""
@@ -408,12 +435,14 @@ class Prediction2Waymo(object):
             :obj:`Objects`: Combined predictions in Objects proto.
         """
         combined = metrics_pb2.Objects()
-
+        count = 0
         for pathname in pathnames:
             objects = metrics_pb2.Objects()
             with open(pathname, 'rb') as f:
                 objects.ParseFromString(f.read())
             for o in objects.objects:
                 combined.objects.append(o)
-
+                count += 1
+        print('count', count)
+        
         return combined

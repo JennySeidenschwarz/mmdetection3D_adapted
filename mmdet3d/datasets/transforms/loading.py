@@ -831,6 +831,7 @@ class LoadAnnotations3D(LoadAnnotations):
                  with_seg: bool = False,
                  with_bbox_depth: bool = False,
                  with_panoptic_3d: bool = False,
+                 with_ignore: bool = True,
                  poly2mask: bool = True,
                  seg_3d_dtype: str = 'np.int64',
                  seg_offset: int = None,
@@ -850,6 +851,7 @@ class LoadAnnotations3D(LoadAnnotations):
         self.with_mask_3d = with_mask_3d
         self.with_seg_3d = with_seg_3d
         self.with_panoptic_3d = with_panoptic_3d
+        self.with_ignore = with_ignore
         self.seg_3d_dtype = eval(seg_3d_dtype)
         self.seg_offset = seg_offset
         self.dataset_type = dataset_type
@@ -866,6 +868,20 @@ class LoadAnnotations3D(LoadAnnotations):
         """
 
         results['gt_bboxes_3d'] = results['ann_info']['gt_bboxes_3d']
+        return results
+
+    def _load_ignore_bboxes_3d(self, results: dict) -> dict:
+        """Private function to move the 3D bounding box annotation from
+        `ann_info` field to the root of `results`.
+
+        Args:
+            results (dict): Result dict from :obj:`mmdet3d.CustomDataset`.
+
+        Returns:
+            dict: The dict containing loaded 3D bounding box annotations.
+        """
+
+        results['gt_bboxes_ignore'] = results['ann_info']['gt_bboxes_ignore']
         return results
 
     def _load_bboxes_depth(self, results: dict) -> dict:
@@ -1058,6 +1074,8 @@ class LoadAnnotations3D(LoadAnnotations):
             results = self._load_masks_3d(results)
         if self.with_seg_3d:
             results = self._load_semantic_seg_3d(results)
+        if self.with_ignore and 'gt_bboxes_ignore' in results['ann_info']:
+            results = self._load_ignore_bboxes_3d(results)
         return results
 
     def __repr__(self) -> str:

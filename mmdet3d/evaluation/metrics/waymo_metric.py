@@ -78,6 +78,9 @@ class WaymoMetric(KittiMetric):
 
     def __init__(self,
                  ann_file: str,
+                 percentage: float,
+                 detection_type: str,
+                 all_car: bool,
                  waymo_bin_file: str,
                  data_root: str,
                  split: str = 'training',
@@ -93,14 +96,28 @@ class WaymoMetric(KittiMetric):
                  use_pred_sample_idx: bool = False,
                  collect_device: str = 'cpu',
                  backend_args: Optional[dict] = None,
-                 idx2metainfo: Optional[str] = None) -> None:
+                 idx2metainfo: Optional[str] = None, 
+                 work_dir: str = 'work_dir') -> None:
+        # self.data_infos = load(self.ann_file, percentage=self.percentage)['data_list']
         self.waymo_bin_file = waymo_bin_file
         self.data_root = data_root
+        if 'evaluation' in detection_type:
+            self._split = 'validation'
+        elif 'test' in detection_type:
+            self._split = 'testing'
+        else:
+            self._split = 'training'
+            all_car_add = '_car' if all_car else ''
+            self.waymo_bin_file = f'waymo_gt_and_meta/gt/gt_{percentage}_{detection_type}{all_car_add}.bin'
+            self.waymo_bin_file = '/workspace/ExchangeWorkspace/waymo_gt_and_meta/gt/gt_0.1_val_detector_car_filter_moving_range.bin'
+        self.work_dir = work_dir
+
+        print('GT TO EVALUATEEEEEEEEEEEE', self.waymo_bin_file, self.work_dir, 'hiiii')
+
         self.split = split
         self.load_type = load_type
         self.use_pred_sample_idx = use_pred_sample_idx
         self.convert_kitti_format = convert_kitti_format
-
         if idx2metainfo is not None:
             self.idx2metainfo = mmengine.load(idx2metainfo)
         else:
@@ -108,6 +125,9 @@ class WaymoMetric(KittiMetric):
 
         super(WaymoMetric, self).__init__(
             ann_file=ann_file,
+            percentage=percentage,
+            detection_type=detection_type,
+            all_car=all_car,
             metric=metric,
             pcd_limit_range=pcd_limit_range,
             prefix=prefix,
@@ -123,6 +143,7 @@ class WaymoMetric(KittiMetric):
             'be saved to a temp directory which will be cleaned up at the end.'
 
         self.default_prefix = 'Waymo metric'
+        # self.format_results_debug()
 
     def compute_metrics(self, results: List[dict]) -> Dict[str, float]:
         """Compute the metrics from processed results.
@@ -138,7 +159,9 @@ class WaymoMetric(KittiMetric):
         self.classes = self.dataset_meta['classes']
 
         # load annotations
-        self.data_infos = load(self.ann_file)['data_list']
+        print(self.percentage, self.ann_file)
+        self.data_infos = load(self.ann_file, detection_type=self.detection_type, percentage=self.percentage, all_car=self.all_car)['data_list']
+        print(len(self.data_infos), len(results))
         assert len(results) == len(self.data_infos), \
             'invalid list length of network outputs'
         # different from kitti, waymo do not need to convert the ann file
@@ -367,14 +390,19 @@ class WaymoMetric(KittiMetric):
                     offset=0.5, period=np.pi * 2)
 
         waymo_root = self.data_root
-        if self.split == 'training':
+        if self._split == 'training':
+            waymo_tfrecords_dir = osp.join(waymo_root, 'training')
+            prefix = '0'
+        elif self._split == 'validation':
             waymo_tfrecords_dir = osp.join(waymo_root, 'validation')
             prefix = '1'
-        elif self.split == 'testing':
+        elif self._split == 'testing':
             waymo_tfrecords_dir = osp.join(waymo_root, 'testing')
             prefix = '2'
         else:
             raise ValueError('Not supported split value.')
+        
+        torch.save(final_results, 'debug_res.pth')
 
         from ..functional.waymo_utils.prediction_to_waymo import \
             Prediction2Waymo
@@ -387,7 +415,40 @@ class WaymoMetric(KittiMetric):
             classes,
             backend_args=self.backend_args,
             from_kitti_format=self.convert_kitti_format,
-            idx2metainfo=self.idx2metainfo)
+            idx2metainfo=self.idx2metainfo,
+            detection_type=self.detection_type,
+            percentage=self.percentage,
+            work_dir=self.work_dir)
+        converter.convert()
+        waymo_save_tmp_dir.cleanup()
+
+        return final_results, waymo_save_tmp_dir
+
+    def format_results_debug():
+        waymo_save_tmp_dir = tempfile.TemporaryDirectory()
+        waymo_results_save_dir = waymo_save_tmp_dir.name
+        waymo_results_final_path = f'{pklfile_prefix}.bin'
+
+        waymo_root = self.data_root
+        waymo_tfrecords_dir = osp.join(waymo_root, 'training')
+        prefix = '1'
+        final_results = torch.load('debug_res.pth')
+    
+        from ..functional.waymo_utils.prediction_to_waymo import \
+            Prediction2Waymo
+        converter = Prediction2Waymo(
+            final_results,
+            waymo_tfrecords_dir,
+            waymo_results_save_dir,
+            waymo_results_final_path,
+            prefix,
+            classes,
+            backend_args=self.backend_args,
+            from_kitti_format=self.convert_kitti_format,
+            idx2metainfo=self.idx2metainfo,
+            detection_type=self.detection_type,
+            percentage=self.percentage,
+            work_dir=self.work_dir)
         converter.convert()
         waymo_save_tmp_dir.cleanup()
 

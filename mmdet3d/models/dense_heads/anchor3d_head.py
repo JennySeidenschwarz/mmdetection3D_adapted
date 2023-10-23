@@ -424,5 +424,9 @@ class Anchor3DHead(Base3DDenseHead, AnchorTrainMixin):
                 dir_targets_list,
                 dir_weights_list,
                 num_total_samples=num_total_samples)
+            if torch.isnan(torch.tensor(losses_cls)).any() or torch.isnan(torch.tensor(losses_bbox)).any() or torch.isnan(torch.tensor(losses_dir)).any():
+                print()
+                print(losses_cls, losses_bbox, losses_dir)
+                quit()
         return dict(
             loss_cls=losses_cls, loss_bbox=losses_bbox, loss_dir=losses_dir)

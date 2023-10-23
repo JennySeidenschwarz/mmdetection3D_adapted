@@ -103,6 +103,8 @@ class DataBaseSampler(object):
                  prepare: dict,
                  sample_groups: dict,
                  classes: Optional[List[str]] = None,
+                 info_path2: str = '',
+                 data_root2: str = '',
                  points_loader: dict = dict(
                      type='LoadPointsFromFile',
                      coord_type='LIDAR',
@@ -113,6 +115,8 @@ class DataBaseSampler(object):
         super().__init__()
         self.data_root = data_root
         self.info_path = info_path
+        self.data_root2 = data_root2
+        self.info_path2 = info_path2
         self.rate = rate
         self.prepare = prepare
         self.classes = classes
@@ -126,6 +130,12 @@ class DataBaseSampler(object):
                 info_path, backend_args=self.backend_args) as local_path:
             # loading data from a file-like object needs file format
             db_infos = mmengine.load(open(local_path, 'rb'), file_format='pkl')
+        if info_path2 != '':
+            with get_local_path(
+                    info_path2, backend_args=self.backend_args) as local_path:
+                # loading data from a file-like object needs file format
+                db_infos2 = mmengine.load(open(local_path, 'rb'), file_format='pkl')
+            db_infos.update(db_infos2)
 
         # filter database infos
         from mmengine.logging import MMLogger

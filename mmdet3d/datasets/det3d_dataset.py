@@ -3,6 +3,7 @@ import copy
 import os
 from os import path as osp
 from typing import Callable, List, Optional, Set, Union
+import copy 
 
 import numpy as np
 import torch
@@ -104,16 +105,21 @@ class Det3DDataset(BaseDataset):
         if metainfo is not None and 'classes' in metainfo:
             # we allow to train on subset of self.METAINFO['classes']
             # map unselected labels to -1
+            print(self.METAINFO['classes'])
             self.label_mapping = {
                 i: -1
                 for i in range(len(self.METAINFO['classes']))
             }
+            print(self.label_mapping)
+            self.label_mapping_str = copy.deepcopy(self.label_mapping)
             self.label_mapping[-1] = -1
             for label_idx, name in enumerate(metainfo['classes']):
                 ori_label = self.METAINFO['classes'].index(name)
                 self.label_mapping[ori_label] = label_idx
-
+            print(self.label_mapping)
+            print(self.label_mapping_str)
             self.num_ins_per_cat = {name: 0 for name in metainfo['classes']}
+            print(self.num_ins_per_cat)
         else:
             self.label_mapping = {
                 i: i
@@ -125,7 +131,6 @@ class Det3DDataset(BaseDataset):
                 name: 0
                 for name in self.METAINFO['classes']
             }
-
         super().__init__(
             ann_file=ann_file,
             metainfo=metainfo,
@@ -253,7 +258,7 @@ class Det3DDataset(BaseDataset):
 
                 ann_info[mapped_ann_name] = temp_anns
             ann_info['instances'] = info['instances']
-
+            
             for label in ann_info['gt_labels_3d']:
                 if label != -1:
                     cat_name = self.metainfo['classes'][label]
@@ -324,7 +329,6 @@ class Det3DDataset(BaseDataset):
             info['ann_info'] = self.parse_ann_info(info)
         if self.test_mode and self.load_eval_anns:
             info['eval_ann_info'] = self.parse_ann_info(info)
-
         return info
 
     def _show_ins_var(self, old_labels: np.ndarray,
@@ -369,10 +373,10 @@ class Det3DDataset(BaseDataset):
             dict or None: Data dict of the corresponding index.
         """
         ori_input_dict = self.get_data_info(index)
-
+        
         # deepcopy here to avoid inplace modification in pipeline.
         input_dict = copy.deepcopy(ori_input_dict)
-
+        
         # box_type_3d (str): 3D box type.
         input_dict['box_type_3d'] = self.box_type_3d
         # box_mode_3d (str): 3D box mode.
@@ -382,8 +386,46 @@ class Det3DDataset(BaseDataset):
         if not self.test_mode and self.filter_empty_gt:
             if len(input_dict['ann_info']['gt_labels_3d']) == 0:
                 return None
-
+        
+        if not self.test_mode:
+            # remove inf rows inf_test
+            is_inf = torch.isinf(
+                    input_dict['ann_info']['gt_bboxes_3d'].tensor)
+            if is_inf.any():
+                print('some infs', is_inf.any())
+                idx = torch.arange(input_dict['ann_info']['gt_bboxes_3d'].tensor.shape[0])
+                is_in = (idx[..., None] == torch.unique(torch.where(is_inf)[0])).any(-1)
+                idx = idx[~is_in].squeeze()
+                # filtered_example = InstanceData(
+                input_dict['ann_info']['gt_bboxes_3d'].tensor = \
+                        torch.atleast_2d(input_dict['ann_info']['gt_bboxes_3d'].tensor[idx, :])
+                input_dict['ann_info']['gt_labels_3d'] = \
+                        np.atleast_1d(input_dict['ann_info']['gt_labels_3d'][idx])
+                input_dict['ann_info']['gt_bboxes'] = \
+                        np.atleast_2d(input_dict['ann_info']['gt_bboxes'][idx, :])
+            assert (~torch.isinf(input_dict['ann_info']['gt_bboxes_3d'].tensor)).any(), 'inf in data...'
+    
+            # remove bboxes of length, width, height = 0
+            # input_dict['ann_info']['gt_bboxes_3d'].tensor[0, 5] = 0
+            # input_dict['ann_info']['gt_bboxes_3d'].tensor[1, 5] = 0
+            is_zero = input_dict['ann_info']['gt_bboxes_3d'].tensor[:, 3:6] < 0.2
+            if is_zero.any():
+                idx = torch.arange(input_dict['ann_info']['gt_bboxes_3d'].tensor.shape[0])
+                is_in = (idx[..., None] == torch.unique(torch.where(is_zero)[0])).any(-1)
+                idx = idx[~is_in].squeeze()
+                input_dict['ann_info']['gt_bboxes_3d'].tensor = \
+                        torch.atleast_2d(input_dict['ann_info']['gt_bboxes_3d'].tensor[idx, :])
+                input_dict['ann_info']['gt_labels_3d'] = \
+                        np.atleast_1d(input_dict['ann_info']['gt_labels_3d'][idx])
+                input_dict['ann_info']['gt_bboxes'] = \
+                        np.atleast_2d(input_dict['ann_info']['gt_bboxes'][idx, :])
+            tensor = input_dict['ann_info']['gt_bboxes_3d'].tensor[:, 3:6]
+            assert ~(input_dict['ann_info']['gt_bboxes_3d'].tensor[:, 3:6] == 0).any(), f'zeros in data..., \n {tensor}'  
+        
         example = self.pipeline(input_dict)
+        # quit()
+        if not self.test_mode:
+            assert ~(example['data_samples'].gt_instances_3d.bboxes_3d.tensor[:, 3:6] == 0).any(), f'zeros after pipeline, \n {input_dict},\n  {example}'
 
         if not self.test_mode and self.filter_empty_gt:
             # after pipeline drop the example with empty annotations

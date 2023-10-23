@@ -143,7 +143,8 @@ def create_groundtruth_database(dataset_class_name,
         with_mask (bool, optional): Whether to use mask.
             Default: False.
     """
-    print(f'Create GT Database of {dataset_class_name}')
+    print(f' hshshs Create GT Database of {dataset_class_name}')
+    print('Here?!?!')
     dataset_cfg = dict(
         type=dataset_class_name, data_root=data_path, ann_file=info_path)
     if dataset_class_name == 'KittiDataset':
@@ -382,7 +383,8 @@ class GTDatabaseCreater:
                  bev_only=False,
                  coors_range=None,
                  with_mask=False,
-                 num_worker=8) -> None:
+                 num_worker=8,
+                 out_path=None) -> None:
         self.dataset_class_name = dataset_class_name
         self.data_path = data_path
         self.info_prefix = info_prefix
@@ -398,6 +400,7 @@ class GTDatabaseCreater:
         self.coors_range = coors_range
         self.with_mask = with_mask
         self.num_worker = num_worker
+        self.out_path = out_path
         self.pipeline = None
 
     def create_single(self, input_dict):
@@ -503,7 +506,7 @@ class GTDatabaseCreater:
 
         return single_db_infos
 
-    def create(self):
+    def create(self, detection_type):
         print(f'Create GT Database of {self.dataset_class_name}')
         dataset_cfg = dict(
             type=self.dataset_class_name,
@@ -562,6 +565,7 @@ class GTDatabaseCreater:
         elif self.dataset_class_name == 'WaymoDataset':
             backend_args = None
             dataset_cfg.update(
+                detection_type=detection_type,
                 test_mode=False,
                 data_prefix=dict(
                     pts='training/velodyne',
@@ -590,11 +594,13 @@ class GTDatabaseCreater:
         self.dataset = DATASETS.build(dataset_cfg)
         self.pipeline = self.dataset.pipeline
         if self.database_save_path is None:
+            save_path = self.data_path if self.out_path is None else self.out_path
             self.database_save_path = osp.join(
-                self.data_path, f'{self.info_prefix}_gt_database')
+                save_path, f'{self.info_prefix}_gt_database')
         if self.db_info_save_path is None:
+            save_path = self.data_path if self.out_path is None else self.out_path
             self.db_info_save_path = osp.join(
-                self.data_path, f'{self.info_prefix}_dbinfos_train.pkl')
+                save_path, f'{self.info_prefix}_dbinfos_train.pkl')
         mmengine.mkdir_or_exist(self.database_save_path)
         if self.with_mask:
             self.coco = COCO(osp.join(self.data_path, self.mask_anno_path))

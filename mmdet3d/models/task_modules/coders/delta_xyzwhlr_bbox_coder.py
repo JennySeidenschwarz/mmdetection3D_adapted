@@ -34,6 +34,7 @@ class DeltaXYZWLHRBBoxCoder(BaseBBoxCoder):
         """
         box_ndim = src_boxes.shape[-1]
         cas, cgs, cts = [], [], []
+        # print(box_ndim)
         if box_ndim > 7:
             xa, ya, za, wa, la, ha, ra, *cas = torch.split(
                 src_boxes, 1, dim=-1)
@@ -52,6 +53,7 @@ class DeltaXYZWLHRBBoxCoder(BaseBBoxCoder):
         lt = torch.log(lg / la)
         wt = torch.log(wg / wa)
         ht = torch.log(hg / ha)
+        # print(ht, hg, ha)
         rt = rg - ra
         return torch.cat([xt, yt, zt, wt, lt, ht, rt, *cts], dim=-1)
 

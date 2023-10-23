@@ -105,9 +105,29 @@ class Waymo2KITTI(object):
                 f'{self.save_dir}/cam_sync_label_all'
 
         self.create_folder()
+        self.waymo2kitti = pd.DataFrame(columns=['log_id', 'timestamp', 'file_idx', 'frame_idx', 'prefix'])
 
+    def generate_waymo2kitti(self):
+        for file_idx in range(len(self)):
+            pathname = self.tfrecord_pathnames[file_idx]
+            dataset = tf.data.TFRecordDataset(pathname, compression_type='')
+
+            for frame_idx, data in enumerate(dataset):
+                frame = dataset_pb2.Frame()
+                frame.ParseFromString(bytearray(data.numpy()))
+                time = frame.timestamp_micros
+                self.waymo2kitti.loc[len(self.waymo2kitti.index)] = [
+                        pathname.split('-')[1].split('_')[0],
+                        f'{time}'
+                        f'{str(file_idx).zfill(3)}',
+                        f'{str(frame_idx).zfill(3)}',
+                        f'{str(prefix)}']
+                print(self.waymo2kitti)
+        self.waymo2kitti.to_csv(index=False)
+    
     def convert(self):
         """Convert action."""
+        # self.generate_waymo2kitti()
         print('Start converting ...')
         mmengine.track_parallel_progress(self.convert_one, range(len(self)),
                                          self.workers)
@@ -611,6 +631,7 @@ def create_ImageSets_img_ids(root_dir, splits):
         os.mkdir(save_dir)
 
     idx_all = [[] for i in splits]
+    
     for i, split in enumerate(splits):
         path = join(root_dir, splits[i], 'calib')
         if not exists(path):

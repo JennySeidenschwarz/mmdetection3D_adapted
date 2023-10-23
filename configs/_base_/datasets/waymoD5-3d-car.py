@@ -2,7 +2,10 @@
 # D5 in the config name means the whole dataset is divided into 5 folds
 # We only use one fold for efficient experiments
 dataset_type = 'WaymoDataset'
-data_root = 'data/waymo/kitti_format/'
+data_root = '/workspace/waymo_kitti_format/kitti_format'
+data_root_annotations = '/workspace/waymo_kitti_format_annotaions/kitti_format/'
+rel_annotations_dir = '../../waymo_kitti_format_annotaions/kitti_format'
+waymo_root = f'/workspace/waymo/waymo_format/'
 
 # Example to use different file client
 # Method 1: simply set the data root and let the file I/O module
@@ -19,14 +22,14 @@ data_root = 'data/waymo/kitti_format/'
 #      }))
 backend_args = None
 
-class_names = ['Car']
+class_names = ['Car'] #, 'Pedestrian', 'Cyclist']
 metainfo = dict(classes=class_names)
 
 point_cloud_range = [-74.88, -74.88, -2, 74.88, 74.88, 4]
 input_modality = dict(use_lidar=True, use_camera=False)
 db_sampler = dict(
-    data_root=data_root,
-    info_path=data_root + 'waymo_dbinfos_train.pkl',
+    data_root=data_root_annotations,
+    info_path=data_root_annotations + 'waymo_dbinfos_train.pkl',
     rate=1.0,
     prepare=dict(filter_by_difficulty=[-1], filter_by_min_points=dict(Car=5)),
     classes=class_names,
@@ -47,7 +50,7 @@ train_pipeline = [
         use_dim=5,
         backend_args=backend_args),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
-    dict(type='ObjectSample', db_sampler=db_sampler),
+    # dict(type='ObjectSample', db_sampler=db_sampler),
     dict(
         type='RandomFlip3D',
         sync_2d=False,
@@ -102,7 +105,7 @@ eval_pipeline = [
 
 train_dataloader = dict(
     batch_size=2,
-    num_workers=2,
+    num_workers=64,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
@@ -111,7 +114,7 @@ train_dataloader = dict(
         dataset=dict(
             type=dataset_type,
             data_root=data_root,
-            ann_file='waymo_infos_train.pkl',
+            ann_file=f'{data_root_annotations}/waymo_infos_train.pkl',
             data_prefix=dict(
                 pts='training/velodyne', sweeps='training/velodyne'),
             pipeline=train_pipeline,
@@ -123,10 +126,12 @@ train_dataloader = dict(
             box_type_3d='LiDAR',
             # load one frame every five frames
             load_interval=5,
-            backend_args=backend_args)))
+            backend_args=backend_args,
+            detection_type='train_detector',
+            all_car=True)))
 val_dataloader = dict(
     batch_size=1,
-    num_workers=1,
+    num_workers=64,
     persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False),
@@ -134,17 +139,20 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
-        ann_file='waymo_infos_val.pkl',
+        ann_file=f'{data_root_annotations}/waymo_infos_train.pkl',
+        # ann_file=f'{data_root_annotations}/waymo_infos_val.pkl',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
         metainfo=metainfo,
         box_type_3d='LiDAR',
-        backend_args=backend_args))
+        backend_args=backend_args,
+        detection_type='val_detector',
+        all_car=True))
 
 test_dataloader = dict(
     batch_size=1,
-    num_workers=1,
+    num_workers=64,
     persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False),
@@ -152,22 +160,34 @@ test_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
-        ann_file='waymo_infos_val.pkl',
+        ann_file=f'{data_root_annotations}/waymo_infos_train.pkl',
+        # ann_file=f'{data_root_annotations}/waymo_infos_val.pkl',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
         metainfo=metainfo,
         box_type_3d='LiDAR',
-        backend_args=backend_args))
+        backend_args=backend_args,
+        detection_type='val_detector',
+        all_car=True))
 
 val_evaluator = dict(
     type='WaymoMetric',
-    ann_file='./data/waymo/kitti_format/waymo_infos_val.pkl',
-    waymo_bin_file='./data/waymo/waymo_format/gt.bin',
-    data_root='./data/waymo/waymo_format',
+    ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_train.pkl',
+    # ann_file='{data_root}/{rel_annotations_dir}/waymo_infos_val.pkl',
+    waymo_bin_file='waymo_gt_and_meta/gt/gt_0.1_val_detector.bin', #f'{waymo_root}/gt.bin',
+    data_root=f'{waymo_root}',
     convert_kitti_format=False,
     backend_args=backend_args)
 test_evaluator = val_evaluator
+'''
+val_evaluator = dict(
+    type='KittiMetric',
+    ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_train.pkl',
+    metric='bbox',
+    backend_args=backend_args)
+test_evaluator = val_evaluator
+'''
 
 vis_backends = [dict(type='LocalVisBackend')]
 visualizer = dict(

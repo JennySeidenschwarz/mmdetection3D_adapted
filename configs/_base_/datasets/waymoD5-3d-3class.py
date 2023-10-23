@@ -3,8 +3,10 @@
 # We only use one fold for efficient experiments
 dataset_type = 'WaymoDataset'
 # data_root = 's3://openmmlab/datasets/detection3d/waymo/kitti_format/'
-data_root = 'data/waymo/kitti_format/'
-
+data_root = '/workspace/waymo_kitti_format/kitti_format/'
+rel_annotations_dir = '../../waymo_kitti_format_annotaions/kitti_format'
+data_root_annotatons = f'/workspace/waymo_kitti_format_annotaions/kitti_format/'
+waymo_root = f'/workspace/waymo/waymo_format/'
 # Example to use different file client
 # Method 1: simply set the data root and let the file I/O module
 # automatically infer from prefix (not support LMDB and Memcache yet)
@@ -27,7 +29,7 @@ point_cloud_range = [-74.88, -74.88, -2, 74.88, 74.88, 4]
 input_modality = dict(use_lidar=True, use_camera=False)
 db_sampler = dict(
     data_root=data_root,
-    info_path=data_root + 'waymo_dbinfos_train.pkl',
+    info_path=data_root_annotatons + 'waymo_dbinfos_train.pkl',
     rate=1.0,
     prepare=dict(
         filter_by_difficulty=[-1],
@@ -114,7 +116,7 @@ train_dataloader = dict(
         dataset=dict(
             type=dataset_type,
             data_root=data_root,
-            ann_file='waymo_infos_train.pkl',
+            ann_file=f'{rel_annotations_dir}/waymo_infos_train.pkl',
             data_prefix=dict(
                 pts='training/velodyne', sweeps='training/velodyne'),
             pipeline=train_pipeline,
@@ -137,7 +139,7 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
-        ann_file='waymo_infos_val.pkl',
+        ann_file=f'{rel_annotations_dir}/waymo_infos_val.pkl',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -155,7 +157,7 @@ test_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
-        ann_file='waymo_infos_val.pkl',
+        ann_file=f'{rel_annotations_dir}/waymo_infos_val.pkl',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -165,9 +167,9 @@ test_dataloader = dict(
 
 val_evaluator = dict(
     type='WaymoMetric',
-    ann_file='./data/waymo/kitti_format/waymo_infos_val.pkl',
-    waymo_bin_file='./data/waymo/waymo_format/gt.bin',
-    data_root='./data/waymo/waymo_format',
+    ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_val.pkl',
+    waymo_bin_file=f'{waymo_root}/gt.bin',
+    data_root=f'{waymo_root}',
     backend_args=backend_args,
     convert_kitti_format=False)
 test_evaluator = val_evaluator

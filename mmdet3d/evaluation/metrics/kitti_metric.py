@@ -51,6 +51,9 @@ class KittiMetric(BaseMetric):
 
     def __init__(self,
                  ann_file: str,
+                 percentage: float,
+                 detection_type: str,
+                 all_car: bool,
                  metric: Union[str, List[str]] = 'bbox',
                  pcd_limit_range: List[float] = [0, -40, -3, 70.4, 40, 0.0],
                  prefix: Optional[str] = None,
@@ -65,6 +68,9 @@ class KittiMetric(BaseMetric):
             collect_device=collect_device, prefix=prefix)
         self.pcd_limit_range = pcd_limit_range
         self.ann_file = ann_file
+        self.percentage = percentage
+        self.detection_type = detection_type
+        self.all_car = all_car
         self.pklfile_prefix = pklfile_prefix
         self.format_only = format_only
         if self.format_only:
@@ -136,7 +142,10 @@ class KittiMetric(BaseMetric):
                             instance['bbox_3d'][3:6])
                         kitti_annos['rotation_y'].append(
                             instance['bbox_3d'][6])
-                        kitti_annos['score'].append(instance['score'])
+                        if 'score' in instance.keys():
+                            kitti_annos['score'].append(instance['score'])
+                        else:
+                            kitti_annos['score'].append(1)
                     for name in kitti_annos:
                         kitti_annos[name] = np.array(kitti_annos[name])
                 data_annos[i]['kitti_annos'] = kitti_annos
@@ -181,7 +190,8 @@ class KittiMetric(BaseMetric):
         self.classes = self.dataset_meta['classes']
 
         # load annotations
-        pkl_infos = load(self.ann_file, backend_args=self.backend_args)
+        # pkl_infos = load(self.ann_file, backend_args=self.backend_args, percentage=self.percentage)
+        pkl_infos = load(self.ann_file, detection_type=self.detection_type, percentage=self.percentage, all_car=self.all_car)
         self.data_infos = self.convert_annos_to_kitti_annos(pkl_infos)
         result_dict, tmp_dir = self.format_results(
             results,

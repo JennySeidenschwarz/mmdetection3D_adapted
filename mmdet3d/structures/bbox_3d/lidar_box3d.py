@@ -82,8 +82,8 @@ class LiDARInstance3DBoxes(BaseInstance3DBoxes):
     def rotate(
         self,
         angle: Union[Tensor, np.ndarray, float],
-        points: Optional[Union[Tensor, np.ndarray, BasePoints]] = None
-    ) -> Union[Tuple[Tensor, Tensor], Tuple[np.ndarray, np.ndarray], Tuple[
+        points: Optional[Union[Tensor, np.ndarray, BasePoints]] = None,
+        ) -> Union[Tuple[Tensor, Tensor], Tuple[np.ndarray, np.ndarray], Tuple[
             BasePoints, Tensor], None]:
         """Rotate boxes with points (optional) with the given angle or rotation
         matrix.
@@ -117,7 +117,7 @@ class LiDARInstance3DBoxes(BaseInstance3DBoxes):
             rot_cos = rot_mat_T[0, 0]
             angle = np.arctan2(rot_sin, rot_cos)
             self.tensor[:, 0:3] = self.tensor[:, 0:3] @ rot_mat_T
-
+        
         self.tensor[:, 6] += angle
 
         if self.tensor.shape[1] == 9:

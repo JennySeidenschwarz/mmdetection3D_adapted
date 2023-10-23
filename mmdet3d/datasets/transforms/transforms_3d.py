@@ -165,6 +165,8 @@ class RandomFlip3D(RandomFlip):
                 else:
                     # vision-only detection
                     input_dict['gt_bboxes_3d'].flip(direction)
+                if 'gt_bboxes_ignore' in input_dict.keys():
+                    input_dict['gt_bboxes_ignore'].flip(direction)
             else:
                 input_dict['points'].flip(direction)
 
@@ -708,6 +710,8 @@ class GlobalRotScaleTrans(BaseTransform):
         input_dict['pcd_trans'] = trans_factor
         if 'gt_bboxes_3d' in input_dict:
             input_dict['gt_bboxes_3d'].translate(trans_factor)
+        if 'gt_bboxes_ignore' in input_dict:
+            input_dict['gt_bboxes_ignore'].translate(trans_factor)
 
     def _rot_bbox_points(self, input_dict: dict) -> None:
         """Private function to rotate bounding boxes and points.
@@ -721,6 +725,10 @@ class GlobalRotScaleTrans(BaseTransform):
         """
         rotation = self.rot_range
         noise_rotation = np.random.uniform(rotation[0], rotation[1])
+        
+        if 'gt_bboxes_ignore' in input_dict:
+            input_dict['gt_bboxes_ignore'].rotate(
+                noise_rotation)
 
         if 'gt_bboxes_3d' in input_dict and \
                 len(input_dict['gt_bboxes_3d'].tensor) != 0:
@@ -757,6 +765,8 @@ class GlobalRotScaleTrans(BaseTransform):
         if 'gt_bboxes_3d' in input_dict and \
                 len(input_dict['gt_bboxes_3d'].tensor) != 0:
             input_dict['gt_bboxes_3d'].scale(scale)
+        if 'gt_bboxes_ignore' in input_dict:
+            input_dict['gt_bboxes_ignore'].scale(scale)
 
     def _random_scale(self, input_dict: dict) -> None:
         """Private function to randomly set the scale factor.
@@ -891,6 +901,13 @@ class ObjectRangeFilter(BaseTransform):
         gt_bboxes_3d.limit_yaw(offset=0.5, period=2 * np.pi)
         input_dict['gt_bboxes_3d'] = gt_bboxes_3d
         input_dict['gt_labels_3d'] = gt_labels_3d
+        
+        if 'gt_bboxes_ignore' in input_dict:
+            gt_bboxes_ignore = input_dict['gt_bboxes_ignore']
+            mask = gt_bboxes_ignore.in_range_bev(bev_range)
+            gt_bboxes_ignore = gt_bboxes_ignore[mask]
+            gt_bboxes_ignore.limit_yaw(offset=0.5, period=2 * np.pi)
+            input_dict['gt_bboxes_ignore'] = gt_bboxes_ignore
 
         return input_dict
 
