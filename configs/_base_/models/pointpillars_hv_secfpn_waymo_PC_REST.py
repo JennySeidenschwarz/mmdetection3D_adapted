@@ -4,9 +4,10 @@
 # If point cloud range is modified, do remember to change all related
 # keys in the config.
 voxel_size = [0.32, 0.32, 6]
-_point_cloud_range = [-74.88, -74.88, -2, 74.88, 74.88, 4]
 # _point_cloud_range = [-50, -20, -2, 50, 20, 4]
-_assign_range = [-50, -20, -0.0345, 50, 20, -0.0345]
+_point_cloud_range = [-74.88, -74.88, -2, 74.88, 74.88, 4]
+# _assign_range = [-50, -20, -0.0345, 50, 20, -0.0345]
+_assign_range = [-74.88, -74.88, -2, 74.88, 74.88, 4]
 model = dict(
     type='MVXFasterRCNN',
     data_preprocessor=dict(

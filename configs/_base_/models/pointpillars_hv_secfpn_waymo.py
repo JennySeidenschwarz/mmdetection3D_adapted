@@ -4,6 +4,12 @@
 # If point cloud range is modified, do remember to change all related
 # keys in the config.
 voxel_size = [0.32, 0.32, 6]
+# _assign_range = [[-50, -20, -0.0345, 50, 20, -0.0345],
+#                     [-50, -20, 0, 50, 20, 0],
+#                     [-50, -20, -0.1188, 50, 20, -0.1188]]
+_assign_range = [[-74.88, -74.88, -0.0345, 74.88, 74.88, -0.0345],
+                    [-74.88, -74.88, 0, 74.88, 74.88, 0],
+                    [-74.88, -74.88, -0.1188, 74.88, 74.88, -0.1188]]
 model = dict(
     type='MVXFasterRCNN',
     data_preprocessor=dict(
@@ -47,9 +53,7 @@ model = dict(
         use_direction_classifier=True,
         anchor_generator=dict(
             type='AlignedAnchor3DRangeGenerator',
-            ranges=[[-74.88, -74.88, -0.0345, 74.88, 74.88, -0.0345],
-                    [-74.88, -74.88, 0, 74.88, 74.88, 0],
-                    [-74.88, -74.88, -0.1188, 74.88, 74.88, -0.1188]],
+            ranges=_assign_range,
             sizes=[
                 [4.73, 2.08, 1.77],  # car
                 [0.91, 0.84, 1.74],  # pedestrian
