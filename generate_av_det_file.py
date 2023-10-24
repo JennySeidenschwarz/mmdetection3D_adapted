@@ -7,6 +7,8 @@ import tensorflow as tf
 from collections import defaultdict
 from scipy.spatial.transform import Rotation
 import pandas as pd
+import glob
+import shutil
 
 
 '''
@@ -38,20 +40,35 @@ column_names = [
 
 
 def main(file, save_dir):
+    os.makedirs(os.path.join(save_dir, file.split('/')[1]), exist_ok=True)
+    os.makedirs(os.path.join(save_path, 'intermediate'))
+    
+    save_path = os.path.join(save_dir, file.split('/')[1])
+    file_name = file.split('/')[2][:-3] + 'feather'
+
     detections = metrics_pb2.Objects()
     with open(file, 'rb') as f:
         detections.ParseFromString(f.read())
     
-    detections_df = extract_labels(detections)
-    save_path = os.path.join(save_dir, file.split('/')[1], file.split('/')[2][:-3] + 'feather')
+    extract_labels(detections, save_path, file_name)
 
-    os.makedirs(os.path.join(save_dir, file.split('/')[1]), exist_ok=True)
-    feather.write_feather(detections_df, save_path)
+    paths = glob.glob(f'{save_path}/intermediate/*')
+    all_df = None
+    for f in paths:
+        df = feather.read_feather(f)
+        if all_df is None:
+            all_df = df
+        else:
+            all_df = pd.concat([all_df, df])
+        shutil.rmfile(f)
+
+    feather.write_feather(all_df, os.path.join(save_path))
         
     print(f"Stored to detections converted from {file} to {save_path}")
 
 
-def extract_labels(detections):
+def extract_labels(detections, save_path):
+    count = 0
     df = pd.DataFrame(columns=column_names)
     for i, obj in enumerate(detections.objects):
         if i % 100 == 0:
@@ -78,7 +95,13 @@ def extract_labels(detections):
             obj.score]
         df.loc[len(df.index)] = data_row
 
-    return df
+        if i % 50000 == 0 and i != 0:
+            print('Writing to ', os.path.join(save_path, 'intermediate', f'{count}.feather'))
+            feather.write_feather(df, os.path.join(save_path, 'intermediate', f'{count}.feather'))
+            count += 1
+            df = pd.DataFrame(columns=column_names)
+
+    feather.write_feather(df, os.path.join(save_path, 'intermediate', f'{count}.feather'))
 
 
 if __name__ == "__main__":
