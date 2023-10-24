@@ -112,46 +112,7 @@ def parse_args():
     return args
 
 
-from torch import distributed as dist
-def get_dist_info():
-
-    if dist.is_available():
-        initialized = dist.is_initialized()
-    else:
-        initialized = False
-    if initialized:
-        rank = dist.get_rank()
-        world_size = dist.get_world_size()
-    else:
-        rank = 0
-        world_size = 1
-    return rank, world_size
-
-
 def main():
-    from torch import distributed as dist
-    rank, world_size = get_dist_info()
-    print(world_size, rank)
-    '''
-    if rank == 0:
-        import shutil
-        shutil.copyfile('mmengine_to_update/base_dataset.py', '/opt/conda/lib/python3.7/site-packages/mmengine/dataset/base_dataset.py')
-        shutil.copyfile('mmengine_to_update/io.py', '/opt/conda/lib/python3.7/site-packages/mmengine/fileio/io.py')
-        if os.path.exists('/mmdetection3d/mmdet3d/evaluation/metrics/'):
-            shutil.rmtree('/mmdetection3d/mmdet3d/evaluation/metrics/')
-            print("deleted", '/mmdetection3d/mmdet3d/evaluation/metrics/')
-        shutil.copytree('mmdet3d/evaluation/metrics/', '/mmdetection3d/mmdet3d/evaluation/metrics/')
-        shutil.copyfile('mmdet3d/models/task_modules/coders/delta_xyzwhlr_bbox_coder.py', '/mmdetection3d/mmdet3d/models/task_modules/coders/delta_xyzwhlr_bbox_coder.py')
-        if os.path.exists('/mmdetection3d/mmdet3d/datasets/'):
-            shutil.rmtree('/mmdetection3d/mmdet3d/datasets/')
-            print('deleted', '/mmdetection3d/mmdet3d/datasets/')
-        shutil.copytree('mmdet3d/datasets/', '/mmdetection3d/mmdet3d/datasets/')
-        if os.path.exists('/mmdetection3d/mmdet3d//datasets/transforms/'):
-            shutil.rmtree('/mmdetection3d/mmdet3d//datasets/transforms/')
-        shutil.copytree('mmdet3d//datasets/transforms/', '/mmdetection3d/mmdet3d//datasets/transforms/')
-        shutil.copyfile('mmdet3d/models/task_modules/assigners/max_3d_iou_assigner.py', '/mmdetection3d/mmdet3d/models/task_modules/assigners/max_3d_iou_assigner.py')
-    dist.barrier()
-    '''
     # dist.init_process_group(backend='nccl', timeout=datetime.timedelta(seconds=10000))
     args = parse_args()
 

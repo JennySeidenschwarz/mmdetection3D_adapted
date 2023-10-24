@@ -6,11 +6,7 @@ dataset_type = 'WaymoDataset'
 data_root = '/workspace/waymo_kitti_format/kitti_format/'
 data_root_annotatons = f'/workspace/waymo_kitti_format_annotaions/kitti_format/'
 
-# data_root_annotatons_dets = f'/workspace/waymo_kitti_format_annotaions_dets/kitti_format/'
-data_root_annotatons_dets = '/workspace/mmdetection3d/data/pseudo_labels/kitti_format/'
-data_root_annotatons_dets = '/workspace/mmdetection3d/detections_train_detector/'
 data_root_annotatons_dets = '/workspace/ExchangeWorkspace/detections_train_detector/'
-detection_name = 'INITIAL_DETS_OLD_MODEL_0.1_0.1_all_egocomp_margin0.6_width25_nooracle_64_64_64_64_0.5_3.5_0.5_4_3.162277660168379e-06_0.0031622776601683794_16000_16000__NS_MG_32_2.0_LN_/train_detector/annotations_IoU3D.feather'
 detection_name = 'GNN_motion_patterns_MORE_OR_LESS_FINAL_GNN_HIHI_0.1_0.1_all_egocomp_margin0.6_width25_nooracle_64_3_True_64_3_True_0.5_3.5_0.5_4_3.162277660168379e-06_0.0031622776601683794_16000_16000__NS_MG_32_LN___P___MMMDPTT___PT_/train_detector/annotations_IoU3D.feather'
 
 rel_annotations_dir = '../../waymo_kitti_format_annotaions/kitti_format'
@@ -34,7 +30,7 @@ backend_args = None
 class_names = ['Car']
 metainfo = dict(classes=class_names)
 
-point_cloud_range = [-74.88, -74.88, -2, 74.88, 74.88, 4]
+point_cloud_range = [-50, -20, -2, 50, 20, 4] # [-74.88, -74.88, -2, 74.88, 74.88, 4]
 input_modality = dict(use_lidar=True, use_camera=False)
 db_sampler = dict(
     data_root=data_root_annotatons_dets,
@@ -113,9 +109,23 @@ eval_pipeline = [
         load_dim=6,
         use_dim=5,
         backend_args=backend_args),
+    dict(
+        type='MultiScaleFlipAug3D',
+        img_scale=(1333, 800),
+        pts_scale_ratio=1,
+        flip=False,
+        transforms=[
+            dict(
+                type='GlobalRotScaleTrans',
+                rot_range=[0, 0],
+                scale_ratio_range=[1., 1.],
+                translation_std=[0, 0, 0]),
+            dict(type='RandomFlip3D'),
+            dict(
+                type='PointsRangeFilter', point_cloud_range=point_cloud_range)
+        ]),
     dict(type='Pack3DDetInputs', keys=['points']),
 ]
-eval_pipeline = test_pipeline
 
 train_dataloader = dict(
     batch_size=2,
@@ -163,7 +173,9 @@ val_dataloader = dict(
         box_type_3d='LiDAR',
         backend_args=backend_args,
         detection_type='val_detector',
-        all_car=True))
+        all_car=True,
+        filter_stat_before=True,
+        stat_as_ignore_region=False))
 
 test_dataloader = dict(
     batch_size=1,
@@ -184,7 +196,9 @@ test_dataloader = dict(
         box_type_3d='LiDAR',
         backend_args=backend_args,
         detection_type='val_detector',
-        all_car=True))
+        all_car=True,
+        filter_stat_before=True,
+        stat_as_ignore_region=False))
 
 val_evaluator = dict(
     type='WaymoMetric',

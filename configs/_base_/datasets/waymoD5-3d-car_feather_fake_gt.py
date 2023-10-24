@@ -6,10 +6,6 @@ dataset_type = 'WaymoDataset'
 data_root = '/workspace/waymo_kitti_format/kitti_format/'
 data_root_annotatons = f'/workspace/waymo_kitti_format_annotaions/kitti_format/'
 
-# data_root_annotatons_dets = f'/workspace/waymo_kitti_format_annotaions_dets/kitti_format/'
-data_root_annotatons_dets = '/workspace/ExchangeWorkspace/detections_train_detector/'
-detection_name = 'gt_0.1_train_detecor/train_detector/all_seqs_mov_obj_fake_detes_waymo_range.feather'
-
 data_root_annotatons_dets = '/workspace/ExchangeWorkspace/Waymo_Converted_filtered/'
 detection_name = 'train_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0_withwaymovel.feather'
 

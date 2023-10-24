@@ -5,10 +5,11 @@ dataset_type = 'WaymoDataset'
 # data_root = 's3://openmmlab/datasets/detection3d/waymo/kitti_format/'
 data_root = '/workspace/waymo_kitti_format/kitti_format/'
 data_root_annotatons = f'/workspace/waymo_kitti_format_annotaions/kitti_format/'
-data_root_annotatons_dets = f'/workspace/waymo_kitti_format_annotaions_dets/kitti_format/'
+
+data_root_annotatons_dets = '/workspace/ExchangeWorkspace/detections_train_detector/'
+detection_name = 'DBSCAN_POS_NEW_FLOW_VAL_DETECTOR_0_all_egocomp_margin0.6_width25_pos_1.0_10/train'
 
 rel_annotations_dir = '../../waymo_kitti_format_annotaions/kitti_format'
-rel_annotations_dir_dets = '../../waymo_kitti_format_annotaions_dets/kitti_format/'
 
 waymo_root = f'/workspace/waymo/waymo_format/'
 # Example to use different file client
@@ -26,14 +27,16 @@ waymo_root = f'/workspace/waymo/waymo_format/'
 #      }))
 backend_args = None
 
-class_names = ['Car', 'Pedestrian', 'Cyclist']
+class_names = ['Car']
 metainfo = dict(classes=class_names)
 
-point_cloud_range = [-74.88, -74.88, -2, 74.88, 74.88, 4]
+point_cloud_range = [-50, -20, -2, 50, 20, 4] #[-74.88, -74.88, -2, 74.88, 74.88, 4]
 input_modality = dict(use_lidar=True, use_camera=False)
 db_sampler = dict(
     data_root=data_root_annotatons_dets,
-    info_path=data_root_annotatons_dets + f'DBSCAN_POS_NEW_FLOW_VAL_DETECTOR_0_all_egocomp_margin0.6_width25_pos_1.0_10/waymo_dbinfos_train.pkl',
+    info_path=data_root_annotatons_dets + f'debug_training',
+    data_root2=data_root_annotatons_dets,
+    info_path2=data_root_annotatons_dets + f'debug_training/waymo_dbinfos_train.pkl',
     rate=1.0,
     prepare=dict(
         filter_by_difficulty=[-1],
@@ -106,7 +109,22 @@ eval_pipeline = [
         load_dim=6,
         use_dim=5,
         backend_args=backend_args),
-    dict(type='Pack3DDetInputs', keys=['points']),
+    dict(
+        type='MultiScaleFlipAug3D',
+        img_scale=(1333, 800),
+        pts_scale_ratio=1,
+        flip=False,
+        transforms=[
+            dict(
+                type='GlobalRotScaleTrans',
+                rot_range=[0, 0],
+                scale_ratio_range=[1., 1.],
+                translation_std=[0, 0, 0]),
+            dict(type='RandomFlip3D'),
+            dict(
+                type='PointsRangeFilter', point_cloud_range=point_cloud_range)
+        ]),
+    dict(type='Pack3DDetInputs', keys=['points'])
 ]
 
 train_dataloader = dict(
@@ -120,7 +138,8 @@ train_dataloader = dict(
         dataset=dict(
             type=dataset_type,
             data_root=data_root_annotatons_dets,
-            ann_file=f'DBSCAN_POS_NEW_FLOW_VAL_DETECTOR_0_all_egocomp_margin0.6_width25_pos_1.0_10/waymo_infos_train.pkl',
+            ann_file='/workspace/mmdetection3d/waymo_debug_infos_train_dict.pkl', #'/workspace/mmdetection3d/data/pseudo_labels/kitti_format/RECOMPUTE_REMOVE_BUG_HEADING_90_EVAL_TRAIN_DET_0.9_0.9_all_egocomp_margin0.6_width25_nooracle_64_64_64_64_0.5_3.5_0.5_4_3.162277660168379e-06_0.0031622776601683794_16000_16000__NS_MG_32_2.0_LN__0/waymo_infos_train.pkl', # f'{data_root_annotatons}waymo_infos_train.pkl',
+            pseudo_labels=f'{data_root_annotatons_dets}{detection_name}',
             data_prefix=dict(
                 pts=f'{data_root}training/velodyne', sweeps='training/velodyne'),
             pipeline=train_pipeline,
@@ -132,7 +151,9 @@ train_dataloader = dict(
             box_type_3d='LiDAR',
             # load one frame every five frames
             load_interval=5,
-            backend_args=backend_args)))
+            backend_args=backend_args,
+            detection_type='train_detector',
+            only_matched=False)))
 val_dataloader = dict(
     batch_size=1,
     num_workers=1,
@@ -143,13 +164,18 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
-        ann_file=f'{rel_annotations_dir}/waymo_infos_val.pkl',
+        # ann_file=f'{rel_annotations_dir}/waymo_infos_val.pkl',
+        ann_file=f'{rel_annotations_dir}/waymo_infos_train.pkl',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
         metainfo=metainfo,
         box_type_3d='LiDAR',
-        backend_args=backend_args))
+        backend_args=backend_args,
+        detection_type='val_detector',
+        all_car=True,
+        filter_stat_before=True,
+        stat_as_ignore_region=False))
 
 test_dataloader = dict(
     batch_size=1,
@@ -161,13 +187,18 @@ test_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
-        ann_file=f'{rel_annotations_dir}/waymo_infos_val.pkl',
+        # ann_file=f'{rel_annotations_dir}/waymo_infos_val.pkl',
+        ann_file=f'{rel_annotations_dir}/waymo_infos_train.pkl',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
         metainfo=metainfo,
         box_type_3d='LiDAR',
-        backend_args=backend_args))
+        backend_args=backend_args,
+        detection_type='val_detector',
+        all_car=True,
+        filter_stat_before=True,
+        stat_as_ignore_region=False))
 
 val_evaluator = dict(
     type='WaymoMetric',

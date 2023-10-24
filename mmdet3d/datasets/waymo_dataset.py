@@ -552,7 +552,7 @@ class WaymoDataset(KittiDataset):
                 # parse raw data information to target format
                 data_info = self._parse_data_info(
                     raw_data_info, raw_data_info_pkl, log_id, waymo2kitti['frame_idx'].values.item())
-                print(data_info)         
+
                 if isinstance(data_info, dict):
                     # For image tasks, `data_info` should information if single
                     # image, such as dict(img_path='xxx', width=360, ...)
