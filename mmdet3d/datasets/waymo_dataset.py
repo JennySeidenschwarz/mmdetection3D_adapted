@@ -132,6 +132,12 @@ class WaymoDataset(KittiDataset):
         self.tfrecord_pathnames = sorted(
             glob.glob(osp.join(load_dir, '*.tfrecord')))
         self.selected_waymo_classes = ['REGULAR_VEHICLE', 'PEDESTRIAN', 'CYCLIST', 'TYPE_VECHICLE', 'TYPE_PEDESTRIAN', 'TYPE_CYCLIST']
+        self._class_dict_waymo = {
+            -1: 'TYPE_UNKNOWN', 
+            1: 'TYPE_VECHICLE',
+            2: 'TYPE_PEDESTRIAN', 
+            3: 'TYPE_SIGN', 
+            4: 'TYPE_CYCLIST'}
         self.waymo_to_kitti_class_map = {
             'UNKNOWN': 'DontCare',
             'PEDESTRIAN': 'Pedestrian',
@@ -453,7 +459,7 @@ class WaymoDataset(KittiDataset):
         """  # noqa: E501
         # `self.ann_file` denotes the absolute annotation file path if
         # `self.root=None` or relative path if `self.root=/path/to/data/`.
-
+        
         # FROM mmengine/dataset/basedataset
         import pickle
         with open(self.ann_file, 'rb') as f:
@@ -466,7 +472,7 @@ class WaymoDataset(KittiDataset):
         # `metainfo` arguments defined in constructor.
         for k, v in metainfo.items():
             self._metainfo.setdefault(k, v)
-
+        
         # LOAD PSEUDO LABELS
         from pyarrow import feather
         if os.path.isfile(self.pseudo_labels):
@@ -478,6 +484,9 @@ class WaymoDataset(KittiDataset):
                 else:
                     raw_data_list = raw_data_list.append(feather.read_feather(os.path.join(self.pseudo_labels, f, 'annotations.feather')))
         raw_data_list = raw_data_list.astype({'timestamp_ns': int})
+        if raw_data_list['category'].dtype == int:
+            def convert2int(x): return self._class_dict_waymo[x]
+            raw_data_list['category'] = raw_data_list['category'].apply(convert2int)
         print(f'All labels {raw_data_list.shape[0]}')
         if self.ann_file2 is not '' and self.ann_file2[-3:] != 'pkl':
             raw_data_list['filter_moving'] = True
@@ -491,6 +500,9 @@ class WaymoDataset(KittiDataset):
                     else:
                         raw_data_list2 = raw_data_list.append(feather.read_feather(os.path.join(self.ann_file2, f, 'annotations.feather')))
             raw_data_list2 = raw_data_list2.astype({'timestamp_ns': int})
+            if raw_data_list2['category'].dtype == int:
+                def convert2int(x): return self._class_dict_waymo[x]
+                raw_data_list2['category'] = raw_data_list2['category'].apply(convert2int)
             raw_data_list = raw_data_list.append(raw_data_list2)
             print(f'Labels of both sources {raw_data_list.shape[0]}')
 
@@ -540,7 +552,7 @@ class WaymoDataset(KittiDataset):
                 # parse raw data information to target format
                 data_info = self._parse_data_info(
                     raw_data_info, raw_data_info_pkl, log_id, waymo2kitti['frame_idx'].values.item())
-                
+                print(data_info)         
                 if isinstance(data_info, dict):
                     # For image tasks, `data_info` should information if single
                     # image, such as dict(img_path='xxx', width=360, ...)
@@ -558,7 +570,7 @@ class WaymoDataset(KittiDataset):
                 else:
                     raise TypeError('data_info should be a dict or list of dict, '
                                     f'but got {type(data_info)}')
-            # break
+            break
         return data_list
     
     def _parse_data_info_pkl(self, info):
