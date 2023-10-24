@@ -1,0 +1,22 @@
+# download the code and enter the base directory
+git clone https://github.com/waymo-research/waymo-open-dataset.git waymo-od
+# git clone https://github.com/Abyssaledge/waymo-open-dataset-master waymo-od # if you want to use faster multi-thread version.
+cd waymo-od
+git checkout remotes/origin/master
+
+# use the Bazel build system
+apt-get install --assume-yes pkg-config zip g++ zlib1g-dev unzip python3 python3-pip
+BAZEL_VERSION=5.4.0
+apt update
+apt install wget
+wget https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh
+bash bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh
+export PATH="$PATH:$HOME/bin"
+apt install build-essential
+cd src
+
+# delete previous bazel outputs and reset internal caches
+bazel clean
+
+bazel build waymo_open_dataset/metrics/tools/compute_detection_metrics_main
+cp bazel-bin/waymo_open_dataset/metrics/tools/compute_detection_metrics_main ../../mmdet3d/evaluation/functional/waymo_utils/

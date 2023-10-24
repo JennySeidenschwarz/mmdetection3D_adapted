@@ -132,6 +132,7 @@ def main():
     from torch import distributed as dist
     rank, world_size = get_dist_info()
     print(world_size, rank)
+    '''
     if rank == 0:
         import shutil
         shutil.copyfile('mmengine_to_update/base_dataset.py', '/opt/conda/lib/python3.7/site-packages/mmengine/dataset/base_dataset.py')
@@ -150,6 +151,7 @@ def main():
         shutil.copytree('mmdet3d//datasets/transforms/', '/mmdetection3d/mmdet3d//datasets/transforms/')
         shutil.copyfile('mmdet3d/models/task_modules/assigners/max_3d_iou_assigner.py', '/mmdetection3d/mmdet3d/models/task_modules/assigners/max_3d_iou_assigner.py')
     dist.barrier()
+    '''
     # dist.init_process_group(backend='nccl', timeout=datetime.timedelta(seconds=10000))
     args = parse_args()
 
@@ -159,14 +161,14 @@ def main():
     if args.ann_file2 is not '':
         cfg.db_sampler['data_root2'] = args.data_root2
         cfg.db_sampler['info_path2'] = args.info_path2
-        cfg.train_dataloader.dataset['dataset']['ann_file2'] = args.ann_file2
-    cfg.train_dataloader.dataset['detection_type'] = args.train_detection_set
-    cfg.train_dataloader.dataset['all_car'] = args.all_car
-    cfg.train_dataloader.dataset['stat_as_ignore_region'] = args.stat_as_ignore_region
-    cfg.train_dataloader.dataset['filter_stat_before'] = args.filter_stat_before
+        cfg.train_dataloader.dataset.dataset['dataset']['ann_file2'] = args.ann_file2
+    cfg.train_dataloader.dataset.dataset['detection_type'] = args.train_detection_set
+    cfg.train_dataloader.dataset.dataset['all_car'] = args.all_car
+    cfg.train_dataloader.dataset.dataset['stat_as_ignore_region'] = args.stat_as_ignore_region
+    cfg.train_dataloader.dataset.dataset['filter_stat_before'] = args.filter_stat_before
 
     if args.pseudo_label_path != '':
-        cfg.train_dataloader.dataset['pseudo_labels'] = args.pseudo_label_path
+        cfg.train_dataloader.dataset.dataset['pseudo_labels'] = args.pseudo_label_path
     cfg.val_dataloader.dataset['percentage'] = float(args.percentage_val)
     cfg.test_dataloader.dataset['percentage'] = float(args.percentage_val)
     cfg.test_dataloader.dataset['detection_type'] = args.test_detection_set
