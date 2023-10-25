@@ -78,6 +78,7 @@ def parse_args():
     parser.add_argument('--all_car', default=False)
     parser.add_argument('--stat_as_ignore_region', default=False)
     parser.add_argument('--filter_stat_before', default=False)
+    parser.add_argument('--min_num_pts_filtered', default=0)
 
     parser.add_argument(
         '--score-thr', type=float, default=0.1, help='bbox score threshold')
@@ -129,7 +130,9 @@ def main():
     cfg.train_dataloader.dataset.dataset['filter_stat_before'] = args.filter_stat_before
 
     if args.pseudo_label_path != '':
-        cfg.train_dataloader.dataset.dataset['pseudo_labels'] = args.pseudo_label_path
+        pseudo_add = '_{args.pseudo_label_path}'
+        cfg.train_dataloader.dataset.dataset['pseudo_labels'] = cfg.train_dataloader.dataset.dataset['data_root']+args.pseudo_label_path
+    print('Using Pseudo labels ', cfg.train_dataloader.dataset.dataset['pseudo_labels'])
     cfg.val_dataloader.dataset['percentage'] = float(args.percentage_val)
     cfg.test_dataloader.dataset['percentage'] = float(args.percentage_val)
     cfg.test_dataloader.dataset['detection_type'] = args.test_detection_set
@@ -176,7 +179,7 @@ def main():
     elif cfg.get('work_dir', None) is None:
         # use config filename as default work_dir if cfg.work_dir is None
         cfg.work_dir = osp.join('./work_dirs',
-                                osp.splitext(osp.basename(args.config))[0] + f'_{args.percentage_train}_{args.percentage_val}_{args.filter_stat_before}_{args.all_car}_{args.train_detection_set}')
+                                osp.splitext(osp.basename(args.config))[0] + f'_{args.percentage_train}_{args.percentage_val}_{args.filter_stat_before}_{args.all_car}_{args.train_detection_set}{pseudo_add}')
     
     cfg.val_evaluator['work_dir'] = cfg.work_dir
     cfg.test_evaluator['work_dir'] = cfg.work_dir 
