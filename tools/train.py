@@ -176,7 +176,7 @@ def main():
     elif cfg.get('work_dir', None) is None:
         # use config filename as default work_dir if cfg.work_dir is None
         cfg.work_dir = osp.join('./work_dirs',
-                                osp.splitext(osp.basename(args.config))[0] + f'_{args.percentage_train}_{args.percentage_val}')
+                                osp.splitext(osp.basename(args.config))[0] + f'_{args.percentage_train}_{args.percentage_val}_{args.filter_stat_before}_{args.all_car}_{args.train_detection_set}')
     
     cfg.val_evaluator['work_dir'] = cfg.work_dir
     cfg.test_evaluator['work_dir'] = cfg.work_dir 
