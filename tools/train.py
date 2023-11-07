@@ -1,4 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+from mmdet3d.datasets.av2_dataset import AV2Dataset
 import torch.distributed as dist
 import datetime
 import wandb
@@ -119,6 +120,8 @@ def main():
 
     # load config
     cfg = Config.fromfile(args.config)
+    cfg.model.test_cfg.pts['score_thr'] = 0.1
+
     cfg.train_dataloader.dataset['dataset']['percentage'] = float(args.percentage_train)
     if args.ann_file2 is not '':
         cfg.db_sampler['data_root2'] = args.data_root2
@@ -128,9 +131,9 @@ def main():
     cfg.train_dataloader.dataset.dataset['all_car'] = args.all_car
     cfg.train_dataloader.dataset.dataset['stat_as_ignore_region'] = args.stat_as_ignore_region
     cfg.train_dataloader.dataset.dataset['filter_stat_before'] = args.filter_stat_before
-
+    pseudo_add = ''
     if args.pseudo_label_path != '':
-        pseudo_add = '_{args.pseudo_label_path}'
+        pseudo_add = f'_{args.pseudo_label_path}'[:30]
         cfg.train_dataloader.dataset.dataset['pseudo_labels'] = cfg.train_dataloader.dataset.dataset['data_root']+args.pseudo_label_path
     print('Using Pseudo labels ', cfg.train_dataloader.dataset.dataset['pseudo_labels'])
     cfg.val_dataloader.dataset['percentage'] = float(args.percentage_val)
@@ -226,9 +229,9 @@ def test(cfg, args):
 
 
 def train(cfg, args):
-    cfg.val_dataloader = None
-    cfg.val_cfg = None
-    cfg.val_evaluator = None
+    #cfg.val_dataloader = None
+    #cfg.val_cfg = None
+    #cfg.val_evaluator = None
     # enable automatic-mixed-precision training
     if args.amp is True:
         optim_wrapper = cfg.optim_wrapper.type

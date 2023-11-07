@@ -69,6 +69,7 @@ class Prediction2Waymo(object):
         self.results = results
         self.waymo_tfrecords_dir = waymo_tfrecords_dir
         self.waymo_results_save_dir = waymo_results_save_dir
+        print(self.waymo_results_save_dir)
         self.waymo_results_final_path = waymo_results_final_path
         self.prefix = prefix
         self.classes = classes
@@ -243,6 +244,7 @@ class Prediction2Waymo(object):
             file_idx (int): Index of the file to be converted.
         """
         file_pathname = self.waymo_tfrecord_pathnames[file_idx]
+        print(file_pathname)
         if 's3://' in file_pathname and tf.__version__ >= '2.6.0':
             try:
                 import tensorflow_io as tfio  # noqa: F401
@@ -254,9 +256,9 @@ class Prediction2Waymo(object):
         # if using subset for evaluation filter tf files
         if file_pathname not in self.filtered_waymo_tfrecord_pathnames:
             return
-
+        print('loading')
         file_data = tf.data.TFRecordDataset(file_pathname, compression_type='')
-
+        print('iterate over file data')
         for frame_num, frame_data in enumerate(file_data):
             frame = open_dataset.Frame()
             frame.ParseFromString(bytearray(frame_data.numpy()))
@@ -376,7 +378,7 @@ class Prediction2Waymo(object):
         print('Start converting ...')
         convert_func = self.convert_one_fast if self.fast_eval else \
             self.convert_one
-
+        print(convert_func)
         # from torch.multiprocessing import set_sharing_strategy
         # # Force using "file_system" sharing strategy for stability
         # set_sharing_strategy("file_system")
@@ -446,3 +448,4 @@ class Prediction2Waymo(object):
         print('count', count)
         
         return combined
+

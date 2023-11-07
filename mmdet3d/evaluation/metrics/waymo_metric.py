@@ -402,38 +402,8 @@ class WaymoMetric(KittiMetric):
         else:
             raise ValueError('Not supported split value.')
         
-        torch.save(final_results, 'debug_res.pth')
-
-        from ..functional.waymo_utils.prediction_to_waymo import \
-            Prediction2Waymo
-        converter = Prediction2Waymo(
-            final_results,
-            waymo_tfrecords_dir,
-            waymo_results_save_dir,
-            waymo_results_final_path,
-            prefix,
-            classes,
-            backend_args=self.backend_args,
-            from_kitti_format=self.convert_kitti_format,
-            idx2metainfo=self.idx2metainfo,
-            detection_type=self.detection_type,
-            percentage=self.percentage,
-            work_dir=self.work_dir)
-        converter.convert()
-        waymo_save_tmp_dir.cleanup()
-
-        return final_results, waymo_save_tmp_dir
-
-    def format_results_debug():
-        waymo_save_tmp_dir = tempfile.TemporaryDirectory()
-        waymo_results_save_dir = waymo_save_tmp_dir.name
-        waymo_results_final_path = f'{pklfile_prefix}.bin'
-
-        waymo_root = self.data_root
-        waymo_tfrecords_dir = osp.join(waymo_root, 'training')
-        prefix = '1'
-        final_results = torch.load('debug_res.pth')
-    
+        torch.save(final_results, f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
+        print('Stored to ...', f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
         from ..functional.waymo_utils.prediction_to_waymo import \
             Prediction2Waymo
         converter = Prediction2Waymo(
@@ -769,3 +739,4 @@ class WaymoMetric(KittiMetric):
                 scores=np.zeros([0]),
                 label_preds=np.zeros([0]),
                 sample_idx=sample_idx)
+

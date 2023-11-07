@@ -16,14 +16,16 @@ import tensorflow as tf
 import numpy as np
 
 from mmdet3d.registry import DATASETS
-from mmdet3d.structures import CameraInstance3DBoxes
+from mmdet3d.structures import CameraInstance3DBoxes, LiDARInstance3DBoxes
 from .det3d_dataset import Det3DDataset
 from .kitti_dataset import KittiDataset 
 from scipy.spatial.transform import Rotation as R
+from pathlib import Path
+from pyarrow import feather
 
 
 @DATASETS.register_module()
-class WaymoDataset(KittiDataset):
+class AV2Dataset(KittiDataset):
     """Waymo Dataset.
 
     This class serves as the API for experiments on the Waymo Dataset.
@@ -131,24 +133,47 @@ class WaymoDataset(KittiDataset):
         self.filter_empty_3dboxes = filter_empty_3dboxes
         self.tfrecord_pathnames = sorted(
             glob.glob(osp.join(load_dir, '*.tfrecord')))
-        self.selected_waymo_classes = ['REGULAR_VEHICLE', 'PEDESTRIAN', 'CYCLIST', 'TYPE_VECHICLE', 'TYPE_PEDESTRIAN', 'TYPE_CYCLIST']
-        self._class_dict_waymo = {
-            -1: 'TYPE_UNKNOWN', 
-            1: 'TYPE_VECHICLE',
-            2: 'TYPE_PEDESTRIAN', 
-            3: 'TYPE_SIGN', 
-            4: 'TYPE_CYCLIST'}
-        self.waymo_to_kitti_class_map = {
-            'UNKNOWN': 'DontCare',
-            'PEDESTRIAN': 'Pedestrian',
-            'TYPE_PEDESTRIAN': 'Pedestrian',
-            'REGULAR_VEHICLE': 'Car',
-            'TYPE_VECHICLE': 'Car',
-            'CYCLIST': 'Cyclist',
-            'TYPE_CYCLIST': 'Cyclist',
-            'SIGN': 'Sign',  # not in kitti
-            'TYPE_SIGN': 'Sign'
-        }        
+        self.load_dir = load_dir
+        self._class_dict_argo = {
+            -1: 'UNMATCHED',
+            1: 'REGULAR_VEHICLE',
+            2: 'PEDESTRIAN',
+            3: 'BOLLARD',
+            4: 'CONSTRUCTION_CONE',
+            5: 'CONSTRUCTION_BARREL',
+            6: 'STOP_SIGN',
+            7: 'BICYCLE',
+            8: 'LARGE_VEHICLE',
+            9: 'WHEELED_DEVICE',
+            10: 'BUS',
+            11: 'BOX_TRUCK',
+            12: 'SIGN',
+            13: 'TRUCK',
+            14: 'MOTORCYCLE',
+            15: 'BICYCLIST',
+            16: 'VEHICULAR_TRAILER',
+            17: 'TRUCK_CAB',
+            18: 'MOTORCYCLIST',
+            19: 'DOG',
+            20: 'SCHOOL_BUS',
+            21: 'WHEELED_RIDER',
+            22: 'STROLLER',
+            23: 'ARTICULATED_BUS',
+            24: 'MESSAGE_BOARD_TRAILER',
+            25: 'MOBILE_PEDESTRIAN_SIGN',
+            26: 'WHEELCHAIR',
+            27: 'RAILED_VEHICLE',
+            28: 'OFFICIAL_SIGNALER',
+            29: 'TRAFFIC_LIGHT_TRAILER',
+            30: 'ANIMAL',
+            31: 'MOBILE_PEDESTRIAN_CROSSING_SIGN'}
+        
+        self.selected_argo_classes = ['REGULAR_VEHICLE'] #[v for k, v in self._class_dict_argo.items() if not k in [-1, 3, 4, 5, 6, 31]]
+
+        self.argo_to_int = {c: i for i, c in enumerate(self.selected_argo_classes)}
+        
+        self.argo_to_kitti = {'REGULAR_VEHICLE': 'Car'}
+
         # we do not provide backend_args to custom_3d init
         # because we want disk loading for info
         # while ceph loading for Prediction2Waymo
@@ -166,65 +191,20 @@ class WaymoDataset(KittiDataset):
             load_type=load_type,
             **kwargs)
 
-    def parse_ann_info(self, info: dict) -> dict:
-        """Process the `instances` in data info to `ann_info`.
+    def get_pose(self, log_id, timestamp_ns):
+        log_poses_df = feather.read_feather(os.path.join(self.load_dir, log_id, "city_SE3_egovehicle.feather"))
+        pose_df = log_poses_df.loc[log_poses_df["timestamp_ns"] == timestamp_ns]
+        qw, qx, qy, qz = pose_df[["qw", "qx", "qy", "qz"]].to_numpy().squeeze()
+        tx_m, ty_m, tz_m = pose_df[["tx_m", "ty_m", "tz_m"]].to_numpy().squeeze()
+        city_t_ego = np.array([tx_m, ty_m, tz_m])
+        r = R.from_quat([qx, qy, qz, qw])
+        rot = r.as_matrix()
+        pose = np.zeros([4, 4])
+        pose[:3, :3] = rot
+        pose[:3, -1] = city_t_ego
+        return pose
 
-        Args:
-            info (dict): Data information of single data sample.
-
-        Returns:
-            dict: Annotation information consists of the following keys:
-
-                - bboxes_3d (:obj:`LiDARInstance3DBoxes`):
-                  3D ground truth bboxes.
-                - bbox_labels_3d (np.ndarray): Labels of ground truths.
-                - gt_bboxes (np.ndarray): 2D ground truth bboxes.
-                - gt_labels (np.ndarray): Labels of ground truths.
-                - difficulty (int): Difficulty defined by KITTI.
-                  0, 1, 2 represent xxxxx respectively.
-        """
-        ann_info = Det3DDataset.parse_ann_info(self, info)
-        if ann_info is None:
-            # empty instance
-            ann_info = {}
-            ann_info['gt_bboxes_3d'] = np.zeros((0, 7), dtype=np.float32)
-            ann_info['gt_labels_3d'] = np.zeros(0, dtype=np.int64)
-
-        ann_info = self._remove_dontcare(ann_info)
-        # in kitti, lidar2cam = R0_rect @ Tr_velo_to_cam
-        # convert gt_bboxes_3d to velodyne coordinates with `lidar2cam`
-        if 'gt_bboxes' in ann_info:
-            gt_bboxes = ann_info['gt_bboxes']
-            gt_bboxes_labels = ann_info['gt_bboxes_labels']
-        else:
-            gt_bboxes = np.zeros((0, 4), dtype=np.float32)
-            gt_bboxes_labels = np.zeros(0, dtype=np.int64)
-        if 'centers_2d' in ann_info:
-            centers_2d = ann_info['centers_2d']
-            depths = ann_info['depths']
-        else:
-            centers_2d = np.zeros((0, 2), dtype=np.float32)
-            depths = np.zeros((0), dtype=np.float32)
-
-        # in waymo, lidar2cam = R0_rect @ Tr_velo_to_cam
-        # convert gt_bboxes_3d to velodyne coordinates with `lidar2cam`
-        lidar2cam = np.array(info['images'][self.default_cam_key]['lidar2cam'])
-        gt_bboxes_3d = CameraInstance3DBoxes(
-            ann_info['gt_bboxes_3d']).convert_to(self.box_mode_3d,
-                                                 np.linalg.inv(lidar2cam))
-        ann_info['gt_bboxes_3d'] = gt_bboxes_3d
-        
-        anns_results = dict(
-            gt_bboxes_3d=gt_bboxes_3d,
-            gt_labels_3d=ann_info['gt_labels_3d'],
-            gt_bboxes=gt_bboxes,
-            gt_bboxes_labels=gt_bboxes_labels,
-            centers_2d=centers_2d,
-            depths=depths)
-
-        return anns_results
-
-    def _parse_ann_info(self, info, info_pkl, log_id, frame_idx) -> dict:
+    def _parse_ann_info(self, info, info_pkl, log_id) -> dict:
         """Process the `instances` in data info to `ann_info`.
 
         Args:
@@ -242,47 +222,34 @@ class WaymoDataset(KittiDataset):
                   0, 1, 2 represent xxxxx respectively.
         """
         gt_bboxes_3d, gt_labels_3d, gt_bboxes, gt_bboxes_labels, centers_2d, depths, ignore_bbs3d = \
-            self._convert_av2kitti(info, log_id, frame_idx)
+            self.get_bbs(info, log_id)
         # in waymo, lidar2cam = R0_rect @ Tr_velo_to_cam
         # convert gt_bboxes_3d to velodyne coordinates with `lidar2cam`
-        lidar2cam = np.array(info_pkl['images'][self.default_cam_key]['lidar2cam'])
-        gt_bboxes_3d = CameraInstance3DBoxes(
-            gt_bboxes_3d).convert_to(self.box_mode_3d,
-                                                 np.linalg.inv(lidar2cam))
-        if self.stat_as_ignore_region:
-            ignore_bbs3d = CameraInstance3DBoxes(ignore_bbs3d).convert_to(self.box_mode_3d,
-                                                 np.linalg.inv(lidar2cam)) 
-            anns_results = dict(
-                gt_bboxes_3d=gt_bboxes_3d,
-                gt_labels_3d=gt_labels_3d,
-                gt_bboxes=gt_bboxes,
-                gt_bboxes_labels=gt_bboxes_labels,
-                centers_2d=centers_2d,
-                depths=depths, 
-                gt_bboxes_ignore=ignore_bbs3d)
-        else:
-            anns_results = dict(
-                gt_bboxes_3d=gt_bboxes_3d,
-                gt_labels_3d=gt_labels_3d,
-                gt_bboxes=gt_bboxes,
-                gt_bboxes_labels=gt_bboxes_labels,
-                centers_2d=centers_2d,
-                depths=depths)
+        gt_bboxes_3d = LiDARInstance3DBoxes(gt_bboxes_3d)
+
+        anns_results = dict(
+            gt_bboxes_3d=gt_bboxes_3d,
+            gt_labels_3d=gt_labels_3d,
+            gt_bboxes=gt_bboxes,
+            gt_bboxes_labels=gt_bboxes_labels,
+            centers_2d=centers_2d,
+            depths=depths)
         return anns_results
 
-    def _convert_av2kitti(self, dets, log_id, frame_idx):
+    def get_bbs(self, dets, log_id):
         types = list()
         bbs3d = list()
         ignore_bbs3d = list()
         for ids, obj in dets.iterrows(): 
             my_type = obj['category']
-            if my_type not in self.selected_waymo_classes:
+            
+            if my_type not in self.selected_argo_classes:
                 continue
             if self.filter_empty_3dboxes and obj['num_interior_pts'] < 1 and obj['num_interior_pts'] != -1:
                 continue
             
-            my_type = self.label_mapping[self.METAINFO['classes'].index(self.waymo_to_kitti_class_map[my_type])]
-
+            my_type = self.label_mapping[self.METAINFO['classes'].index(self.argo_to_kitti[my_type])]
+            
             height = obj['height_m']
             width = obj['width_m']
             length = obj['length_m']
@@ -293,15 +260,15 @@ class WaymoDataset(KittiDataset):
             
             # qw = torch.cos(det.heading/2)
             r = R.from_quat([obj['qx'], obj['qy'], obj['qz'], obj['qw']])
-            rotation_y = - r.as_euler('xyz')[-1]
+            rotation_y = r.as_euler('xyz')[-1]
             
+            '''
             # project bounding box to the virtual reference frame
             T_velo_to_front_cam = self._get_T_velo_to_front_cam(log_id, frame_idx)
             pt_ref = T_velo_to_front_cam @ \
                 np.array([x, y, z, 1]).reshape((4, 1))
             x, y, z, _ = pt_ref.flatten().tolist()
 
-            rotation_y = rotation_y - np.pi /2
             bounding_box_3d = np.array([[
                 round(x, 2),
                 round(y, 2),
@@ -319,7 +286,7 @@ class WaymoDataset(KittiDataset):
                 round(width, 2),
                 round(height, 2),
                 round(rotation_y, 2)]], dtype=np.float32)
-            '''
+            
             if self.stat_as_ignore_region and 'filter_moving' in dets.columns:
                 if not obj['filter_moving']:
                     ignore_bbs3d.append(bounding_box_3d)
@@ -346,65 +313,6 @@ class WaymoDataset(KittiDataset):
             ignore_bbs3d = np.zeros((0, 7), dtype=np.float32)
         
         return bbs3d, types, np.zeros((dets.shape[0], 4), dtype=np.float32), np.zeros((dets.shape[0]), dtype=np.int64), np.zeros((dets.shape[0], 2), dtype=np.float32), np.zeros((dets.shape[0]), dtype=np.float32), ignore_bbs3d
-    
-    def _get_T_velo_to_front_cam(self, log_id, frame_idx):
-        """Parse and save the calibration data.
-
-        Args:
-            frame (:obj:`Frame`): Open dataset frame proto.
-            file_idx (int): Current file index.
-            frame_idx (int): Current frame index.
-        """
-        if int(frame_idx) in self.T_velo_to_front_cam_dict[log_id]:
-            return self.T_velo_to_front_cam_dict[log_id][int(frame_idx)]
-        print(len(self.T_velo_to_front_cam_dict), len(self.T_velo_to_front_cam_dict[log_id]), log_id, frame_idx, self.T_velo_to_front_cam_dict[log_id].keys())
-        print(type(log_id), log_id, frame_idx, 'not in dict??...')
-        quit()
-        pathname = self.tfrecord_pathnames[log_id]
-        dataset = tf.data.TFRecordDataset(pathname, compression_type='')
-        frame = dataset_pb2.Frame()
-        for _frame_idx, data in enumerate(dataset):
-            if _frame_idx == int(frame_idx):
-                frame.ParseFromString(bytearray(data.numpy()))
-                break
-        # waymo front camera to kitti reference camera
-        T_front_cam_to_ref = np.array([[0.0, -1.0, 0.0], [0.0, 0.0, -1.0],
-                                       [1.0, 0.0, 0.0]])
-        for camera in frame.context.camera_calibrations:
-            # extrinsic parameters
-            T_cam_to_vehicle = np.array(camera.extrinsic.transform).reshape(
-                4, 4)
-            T_vehicle_to_cam = np.linalg.inv(T_cam_to_vehicle)
-            Tr_velo_to_cam = \
-                self._cart_to_homo(T_front_cam_to_ref) @ T_vehicle_to_cam
-            if camera.name == 1:  # FRONT = 1, see dataset.proto for details
-                T_velo_to_front_cam = Tr_velo_to_cam.copy()
-                self.T_velo_to_front_cam_dict[log_id][frame_idx] = T_velo_to_front_cam
-                np.savez(f'T_velo_to_front_cam_dict_train.npz', T_velo_to_front_cam_dict=self.T_velo_to_front_cam_dict)
-                del dataset
-                del frame
-                return T_velo_to_front_cam
-
-    def _cart_to_homo(self, mat):
-        """Convert transformation matrix in Cartesian coordinates to
-        homogeneous format.
-
-        Args:
-            mat (np.ndarray): Transformation matrix in Cartesian.
-                The input matrix shape is 3x3 or 3x4.
-
-        Returns:
-            np.ndarray: Transformation matrix in homogeneous format.
-                The matrix shape is 4x4.
-        """
-        ret = np.eye(4)
-        if mat.shape == (3, 3):
-            ret[:3, :3] = mat
-        elif mat.shape == (3, 4):
-            ret[:3, :] = mat
-        else:
-            raise ValueError(mat.shape)
-        return ret
 
     def load_data_list(self, detection_type, ann_file2=False) -> List[dict]:
         """Add the load interval."""
@@ -420,27 +328,16 @@ class WaymoDataset(KittiDataset):
                 self.T_velo_to_front_cam_dict = np.load(
                         'T_velo_to_front_cam_dict_train.npz', allow_pickle=True)['T_velo_to_front_cam_dict'].item()
 
-            if 'evaluation' not in self.detection_type:
-                self.waymo2kitti = pd.read_csv(f'logid_2_kitti_w_time/0_naming.csv')
-            else:
-                self.waymo2kitti = pd.read_csv(f'logid_2_kitti_w_time/1_naming.csv')
-
-            with open(f'new_seq_splits_Waymo_Converted_fixed_val/{self.percentage}_{self.detection_type}.txt', 'r') as f:
+            with open(f'/workspace/ExchangeWorkspace/new_seq_splits_AV2_fixed_val//{self.percentage}_{self.detection_type}.txt', 'r') as f:
                 self.seqs = f.read()
                 self.seqs = self.seqs.split('\n')
-                self.seqs = [int(s) for s in self.seqs]
+                self.seqs = [s for s in self.seqs]
             if self.ann_file2 is not '' and self.ann_file2[-3:] != 'pkl':
-                with open(f'new_seq_splits_Waymo_Converted_fixed_val/{self.percentage}_train_gnn.txt', 'r') as f:
+                with open(f'/workspace/ExchangeWorkspace/new_seq_splits_AV2_fixed_val/{self.percentage}_train_gnn.txt', 'r') as f:
                     seqs2 = f.read()
                     seqs2 = seqs2.split('\n')
-                    seqs2 = [int(s) for s in seqs2]
+                    seqs2 = [s for s in seqs2]
                     self.seqs = self.seqs + seqs2
-            self.waymo2kitti = self.waymo2kitti[self.waymo2kitti['log_id'].isin(self.seqs)]
-            self.waymo2kitti['prefix'] = self.waymo2kitti['prefix'].apply(lambda x: str(x))
-            make_str = lambda x: f'{str(x).zfill(3)}'
-            self.waymo2kitti['frame_idx'] = self.waymo2kitti['frame_idx'].apply(make_str)
-            self.waymo2kitti['file_idx'] = self.waymo2kitti['file_idx'].apply(make_str)
-            self.waymo2kitti['whole_name'] = self.waymo2kitti['prefix'] + self.waymo2kitti['file_idx'] + self.waymo2kitti['frame_idx']
             data_list = self._load_data_list()
         data_list = data_list[::self.load_interval]
         return data_list
@@ -460,12 +357,7 @@ class WaymoDataset(KittiDataset):
         # `self.ann_file` denotes the absolute annotation file path if
         # `self.root=None` or relative path if `self.root=/path/to/data/`.
         
-        # FROM mmengine/dataset/basedataset
-        import pickle
-        with open(self.ann_file, 'rb') as f:
-            annotations = pickle.load(f)
-        metainfo = annotations['metainfo']
-        raw_data_list_pkl = annotations['data_list']
+        metainfo = {'categories': self.argo_to_int, 'dataset': 'argoverse', 'version': '2', 'info_version': '2'}
 
         # Meta information load from annotation file will not influence the
         # existed meta information load from `BaseDataset.METAINFO` and
@@ -483,9 +375,10 @@ class WaymoDataset(KittiDataset):
                     raw_data_list = feather.read_feather(os.path.join(self.pseudo_labels, f, 'annotations.feather'))
                 else:
                     raw_data_list = raw_data_list.append(feather.read_feather(os.path.join(self.pseudo_labels, f, 'annotations.feather')))
+        
         raw_data_list = raw_data_list.astype({'timestamp_ns': int})
         if raw_data_list['category'].dtype == int:
-            def convert2int(x): return self._class_dict_waymo[x]
+            def convert2int(x): return self._class_dict_argo[x]
             raw_data_list['category'] = raw_data_list['category'].apply(convert2int)
         print(f'All labels {raw_data_list.shape[0]}')
         if self.ann_file2 is not '' and self.ann_file2[-3:] != 'pkl':
@@ -518,9 +411,8 @@ class WaymoDataset(KittiDataset):
         if self.filter_stat_before and 'filter_moving' in raw_data_list.columns:
             raw_data_list = raw_data_list[raw_data_list['filter_moving']]
 
-        raw_data_list = raw_data_list[raw_data_list['category'] != 3] 
-        raw_data_list = raw_data_list[raw_data_list['category'] != 'TYPE_SIGN']
-        raw_data_list = raw_data_list[raw_data_list['category'] != 'SIGN']
+        raw_data_list = raw_data_list[raw_data_list['log_id'].isin(self.seqs)]
+        raw_data_list = raw_data_list[raw_data_list['category'].isin(self.selected_argo_classes)] 
         
         print(f'Number of detections without Sign {raw_data_list.shape[0]}')
 
@@ -533,26 +425,36 @@ class WaymoDataset(KittiDataset):
         # load and parse data_infos.
         data_list = []
         num_ids = len(raw_data_list['log_id'].unique())
+        count = 0
         for i, log_id in enumerate(raw_data_list['log_id'].unique()):
             log_data = raw_data_list[raw_data_list['log_id'] == log_id]
             num_time = len(log_data['timestamp_ns'].unique())
             print(f'{i} / {num_ids}, in total {num_time} timestamps')
             for time in log_data['timestamp_ns'].unique():
+                raw_data_info_pkl = dict()
+                raw_data_info_pkl['sample_idx'] = f'{log_id}_{time}'
+                count += 1
+
+                raw_data_info_pkl['timestamp'] = time
+                raw_data_info_pkl['ego2global'] = self.get_pose(log_id, time)
+                #raw_data_info_pkl['images'] = []
+                #raw_data_info_pkl['cam_sync_instances'] = []
+                #raw_data_info_pkl['cam_instances'] = []
+
                 raw_data_info = log_data[log_data['timestamp_ns'] == time]
-                waymo2kitti = self.waymo2kitti[np.logical_and(
-                    self.waymo2kitti['log_id'] == int(log_id),
-                    self.waymo2kitti['timestamp'] == time)]
-                lidar_path = waymo2kitti['whole_name'].values.item() + '.bin'
-                
-                raw_data_info['lidar_path'] = osp.join(
+                lidar_path = os.path.join(self.load_dir, log_id, 'sensors/lidar', f'{time}.feather')
+                raw_data_info_pkl['lidar_points'] = dict()
+                raw_data_info_pkl['lidar_points']['lidar_path'] = osp.join(
                             self.data_prefix.get('pts', ''), lidar_path)
-                raw_data_info_pkl = raw_data_list_pkl[time]
-                raw_data_info_pkl = self._parse_data_info_pkl(raw_data_info_pkl)
+                raw_data_info_pkl['lidar_points']['num_pts_feats'] = 4
+                raw_data_info_pkl['lidar_path'] = osp.join(
+                            self.data_prefix.get('pts', ''), lidar_path)
+                raw_data_info_pkl['num_pts_feats'] = 4
+
                 # if time == 1507221646275518:
                 # parse raw data information to target format
                 data_info = self._parse_data_info(
-                    raw_data_info, raw_data_info_pkl, log_id, waymo2kitti['frame_idx'].values.item())
-
+                    raw_data_info, raw_data_info_pkl, log_id)
                 if isinstance(data_info, dict):
                     # For image tasks, `data_info` should information if single
                     # image, such as dict(img_path='xxx', width=360, ...)
@@ -570,128 +472,10 @@ class WaymoDataset(KittiDataset):
                 else:
                     raise TypeError('data_info should be a dict or list of dict, '
                                     f'but got {type(data_info)}')
-            # break
+        
         return data_list
     
-    def _parse_data_info_pkl(self, info):
-        """Process the raw data info.
-
-        Convert all relative path of needed modality data file to
-        the absolute path. And process the `instances` field to
-        `ann_info` in training stage.
-
-        Args:
-            info (dict): Raw info dict.
-
-        Returns:
-            dict: Has `ann_info` in training stage. And
-            all path has been converted to absolute path.
-        """
-        if self.modality['use_lidar']:
-            info['lidar_points']['lidar_path'] = \
-                osp.join(
-                    self.data_prefix.get('pts', ''),
-                    info['lidar_points']['lidar_path'])
-
-            info['num_pts_feats'] = info['lidar_points']['num_pts_feats']
-            info['lidar_path'] = info['lidar_points']['lidar_path']
-            if 'lidar_sweeps' in info:
-                for sweep in info['lidar_sweeps']:
-                    file_suffix = sweep['lidar_points']['lidar_path'].split(
-                        os.sep)[-1]
-                    if 'samples' in sweep['lidar_points']['lidar_path']:
-                        sweep['lidar_points']['lidar_path'] = osp.join(
-                            self.data_prefix['pts'], file_suffix)
-                    else:
-                        sweep['lidar_points']['lidar_path'] = osp.join(
-                            self.data_prefix['sweeps'], file_suffix)
-
-        if self.modality['use_camera']:
-            for cam_id, img_info in info['images'].items():
-                if 'img_path' in img_info:
-                    if cam_id in self.data_prefix:
-                        cam_prefix = self.data_prefix[cam_id]
-                    else:
-                        cam_prefix = self.data_prefix.get('img', '')
-                    img_info['img_path'] = osp.join(cam_prefix,
-                                                    img_info['img_path'])
-            if self.default_cam_key is not None:
-                info['img_path'] = info['images'][
-                    self.default_cam_key]['img_path']
-                if 'lidar2cam' in info['images'][self.default_cam_key]:
-                    info['lidar2cam'] = np.array(
-                        info['images'][self.default_cam_key]['lidar2cam'])
-                if 'cam2img' in info['images'][self.default_cam_key]:
-                    info['cam2img'] = np.array(
-                        info['images'][self.default_cam_key]['cam2img'])
-                if 'lidar2img' in info['images'][self.default_cam_key]:
-                    info['lidar2img'] = np.array(
-                        info['images'][self.default_cam_key]['lidar2img'])
-                else:
-                    info['lidar2img'] = info['cam2img'] @ info['lidar2cam']
-        # info['ann_info'] = self.parse_ann_info(info)
-
-        return info
-
-    def parse_data_info(self, info: dict) -> Union[dict, List[dict]]:
-        """if task is lidar or multiview det, use super() method elif task is
-        mono3d, split the info from frame-wise to img-wise."""
-
-        if self.cam_sync_instances:
-            info['instances'] = info['cam_sync_instances']
-
-        if self.load_type == 'frame_based':
-            return super().parse_data_info(info)
-        elif self.load_type == 'fov_image_based':
-            # only loading the fov image and the fov instance
-            new_image_info = {}
-            new_image_info[self.default_cam_key] = \
-                info['images'][self.default_cam_key]
-            info['images'] = new_image_info
-            info['instances'] = info['cam_instances'][self.default_cam_key]
-            return super().parse_data_info(info)
-        else:
-            # in the mono3d, the instances is from cam sync.
-            data_list = []
-            if self.modality['use_lidar']:
-                info['lidar_points']['lidar_path'] =  \
-                    osp.join(
-                        self.data_prefix.get('pts', ''),
-                        info['lidar_points']['lidar_path'])
-
-            if self.modality['use_camera']:
-                for cam_key, img_info in info['images'].items():
-                    if 'img_path' in img_info:
-                        cam_prefix = self.data_prefix.get(cam_key, '')
-                        img_info['img_path'] = osp.join(
-                            cam_prefix, img_info['img_path'])
-
-            for (cam_key, img_info) in info['images'].items():
-                camera_info = dict()
-                camera_info['images'] = dict()
-                camera_info['images'][cam_key] = img_info
-                if 'cam_instances' in info \
-                        and cam_key in info['cam_instances']:
-                    camera_info['instances'] = info['cam_instances'][cam_key]
-                else:
-                    camera_info['instances'] = []
-                camera_info['ego2global'] = info['ego2global']
-                if 'image_sweeps' in info:
-                    camera_info['image_sweeps'] = info['image_sweeps']
-
-                # TODO check if need to modify the sample id
-                # TODO check when will use it except for evaluation.
-                camera_info['sample_idx'] = info['sample_idx']
-
-                if not self.test_mode:
-                    # used in training
-                    camera_info['ann_info'] = self.parse_ann_info(camera_info)
-                if self.test_mode and self.load_eval_anns:
-                    info['eval_ann_info'] = self.parse_ann_info(info)
-                data_list.append(camera_info)
-            return data_list
-    
-    def _parse_data_info(self, info, info_pkl, log_id, frame_idx) -> Union[dict, List[dict]]:
+    def _parse_data_info(self, info, info_pkl, log_id) -> Union[dict, List[dict]]:
         """if task is lidar or multiview det, use super() method elif task is
         mono3d, split the info from frame-wise to img-wise."""
         # print(info)
@@ -699,8 +483,9 @@ class WaymoDataset(KittiDataset):
         # print(info_pkl['ann_info'])
         if not self.test_mode:
             # used in training
-            info_pkl['ann_info'] = self._parse_ann_info(info, info_pkl, log_id, frame_idx)
+            info_pkl['ann_info'] = self._parse_ann_info(info, info_pkl, log_id)
         if self.test_mode and self.load_eval_anns:
-            info_pkl['eval_ann_info'] = self._parse_ann_info(info, info_pkl, log_id, frame_idx)
+            info_pkl['eval_ann_info'] = self._parse_ann_info(info, info_pkl, log_id)
         # print(info_pkl['ann_info'])
         return info_pkl
+

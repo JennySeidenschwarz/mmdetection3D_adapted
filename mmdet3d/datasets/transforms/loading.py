@@ -13,6 +13,8 @@ from mmengine.fileio import get
 from mmdet3d.registry import TRANSFORMS
 from mmdet3d.structures.bbox_3d import get_box_type
 from mmdet3d.structures.points import BasePoints, get_points_type
+from pyarrow import feather
+
 
 
 @TRANSFORMS.register_module()
@@ -614,15 +616,18 @@ class LoadPointsFromFile(BaseTransform):
         Returns:
             np.ndarray: An array containing point clouds data.
         """
-        try:
-            pts_bytes = get(pts_filename, backend_args=self.backend_args)
-            points = np.frombuffer(pts_bytes, dtype=np.float32)
-        except ConnectionError:
-            mmengine.check_file_exist(pts_filename)
-            if pts_filename.endswith('.npy'):
-                points = np.load(pts_filename)
-            else:
-                points = np.fromfile(pts_filename, dtype=np.float32)
+        if pts_filename.endswith('.feather'):
+            points = feather.read_feather(pts_filename)[['x', 'y', 'z', 'intensity']].values
+        else:
+            try:
+                pts_bytes = get(pts_filename, backend_args=self.backend_args)
+                points = np.frombuffer(pts_bytes, dtype=np.float32)
+            except ConnectionError:
+                mmengine.check_file_exist(pts_filename)
+                if pts_filename.endswith('.npy'):
+                    points = np.load(pts_filename)
+                else:
+                    points = np.fromfile(pts_filename, dtype=np.float32)
 
         return points
 
@@ -1335,3 +1340,4 @@ class MultiModalityDet3DInferencerLoader(BaseTransform):
         multi_modality_inputs.update(imgs_inputs)
 
         return multi_modality_inputs
+
