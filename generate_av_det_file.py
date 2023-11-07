@@ -40,17 +40,17 @@ column_names = [
 
 
 def main(file, save_dir):
-    os.makedirs(os.path.join(save_dir, file.split('/')[1]), exist_ok=True)
-    os.makedirs(os.path.join(save_path, 'intermediate'))
-    
     save_path = os.path.join(save_dir, file.split('/')[1])
+    os.makedirs(os.path.join(save_dir, file.split('/')[1]), exist_ok=True)
+    os.makedirs(os.path.join(save_path, 'intermediate'), exist_ok=True)
+    
     file_name = file.split('/')[2][:-3] + 'feather'
 
     detections = metrics_pb2.Objects()
     with open(file, 'rb') as f:
         detections.ParseFromString(f.read())
     
-    extract_labels(detections, save_path, file_name)
+    extract_labels(detections, save_path)
 
     paths = glob.glob(f'{save_path}/intermediate/*')
     all_df = None
@@ -60,17 +60,17 @@ def main(file, save_dir):
             all_df = df
         else:
             all_df = pd.concat([all_df, df])
-        shutil.rmfile(f)
 
-    feather.write_feather(all_df, os.path.join(save_path))
+    feather.write_feather(all_df, os.path.join(save_path, file_name))
         
     print(f"Stored to detections converted from {file} to {save_path}")
-
+    shutil.rmtree(f'{save_path}/intermediate')
 
 def extract_labels(detections, save_path):
     count = 0
     df = pd.DataFrame(columns=column_names)
     for i, obj in enumerate(detections.objects):
+        # print(obj.object.type)
         if i % 100 == 0:
             print(i, len(detections.objects))
         r = Rotation.from_euler('z', obj.object.box.heading)
@@ -79,7 +79,7 @@ def extract_labels(detections, save_path):
             obj.context_name.split('_')[0],
             obj.frame_timestamp_micros,
             -1,
-            'TYPE_VECHICLE',
+            obj.object.type,
             obj.object.box.length,
             obj.object.box.width,
             obj.object.box.height,
@@ -95,7 +95,7 @@ def extract_labels(detections, save_path):
             obj.score]
         df.loc[len(df.index)] = data_row
 
-        if i % 50000 == 0 and i != 0:
+        if i % 25000 == 0 and i != 0:
             print('Writing to ', os.path.join(save_path, 'intermediate', f'{count}.feather'))
             feather.write_feather(df, os.path.join(save_path, 'intermediate', f'{count}.feather'))
             count += 1

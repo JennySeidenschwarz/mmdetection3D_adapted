@@ -1,17 +1,17 @@
 # dataset settings
 # D5 in the config name means the whole dataset is divided into 5 folds
 # We only use one fold for efficient experiments
-dataset_type = 'WaymoDataset'
+dataset_type = 'AV2Dataset' #'WaymoDataset'
 # data_root = 's3://openmmlab/datasets/detection3d/waymo/kitti_format/'
 data_root = '/workspace/waymo_kitti_format/kitti_format/'
 data_root_annotatons = f'/workspace/waymo_kitti_format_annotaions/kitti_format/'
 
 data_root_annotatons_dets = '/workspace/ExchangeWorkspace/detections_train_detector/'
-detection_name = 'DBSCAN_POS_NEW_FLOW_VAL_DETECTOR_0_all_egocomp_margin0.6_width25_pos_1.0_10/train'
+detection_name = 'GNN_motion_patterns_MORE_OR_LESS_FINAL_GNN_HIHI_0.1_0.1_all_egocomp_margin0.6_width25_nooracle_64_3_True_64_3_True_0.5_3.5_0.5_4_3.162277660168379e-06_0.0031622776601683794_16000_16000__NS_MG_32_LN___P___MMMDPTT___PT_/train_detector/annotations_IoU3D.feather'
 
 rel_annotations_dir = '../../waymo_kitti_format_annotaions/kitti_format'
 
-waymo_root = f'/workspace/waymo/waymo_format/'
+waymo_root = f'/workspace/Argoverse2/'
 # Example to use different file client
 # Method 1: simply set the data root and let the file I/O module
 # automatically infer from prefix (not support LMDB and Memcache yet)
@@ -30,7 +30,7 @@ backend_args = None
 class_names = ['Car']
 metainfo = dict(classes=class_names)
 
-point_cloud_range = [-50, -20, -2, 50, 20, 4] #[-74.88, -74.88, -2, 74.88, 74.88, 4]
+point_cloud_range = [-50, -20, -2, 50, 20, 4] # [-74.88, -74.88, -2, 74.88, 74.88, 4]
 input_modality = dict(use_lidar=True, use_camera=False)
 db_sampler = dict(
     data_root=data_root_annotatons_dets,
@@ -46,8 +46,8 @@ db_sampler = dict(
     points_loader=dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
-        load_dim=6,
-        use_dim=[0, 1, 2, 3, 4],
+        load_dim=4,
+        use_dim=[0, 1, 2, 3],
         backend_args=backend_args),
     backend_args=backend_args)
 
@@ -55,8 +55,8 @@ train_pipeline = [
     dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
-        load_dim=6,
-        use_dim=5,
+        load_dim=4,
+        use_dim=4,
         backend_args=backend_args),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     # dict(type='ObjectSample', db_sampler=db_sampler),
@@ -124,7 +124,7 @@ eval_pipeline = [
             dict(
                 type='PointsRangeFilter', point_cloud_range=point_cloud_range)
         ]),
-    dict(type='Pack3DDetInputs', keys=['points'])
+    dict(type='Pack3DDetInputs', keys=['points']),
 ]
 
 train_dataloader = dict(
@@ -153,7 +153,8 @@ train_dataloader = dict(
             load_interval=5,
             backend_args=backend_args,
             detection_type='train_detector',
-            only_matched=False)))
+            only_matched=False,
+            load_dir='/workspace/Argoverse2/train')))
 val_dataloader = dict(
     batch_size=1,
     num_workers=1,
@@ -166,6 +167,7 @@ val_dataloader = dict(
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
         # ann_file=f'{rel_annotations_dir}/waymo_infos_val.pkl',
         ann_file=f'{rel_annotations_dir}/waymo_infos_train.pkl',
+        pseudo_labels=f'/workspace/ExchangeWorkspace/Argoverse2_filtered/train_1.0_per_frame_remove_non_move_remove_far_filtered_version.feather',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -174,8 +176,9 @@ val_dataloader = dict(
         backend_args=backend_args,
         detection_type='val_detector',
         all_car=True,
-        filter_stat_before=True,
-        stat_as_ignore_region=False))
+        filter_stat_before=False,
+        stat_as_ignore_region=False,
+        load_dir='/workspace/Argoverse2/train'))
 
 test_dataloader = dict(
     batch_size=1,
@@ -189,6 +192,7 @@ test_dataloader = dict(
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
         # ann_file=f'{rel_annotations_dir}/waymo_infos_val.pkl',
         ann_file=f'{rel_annotations_dir}/waymo_infos_train.pkl',
+        pseudo_labels=f'{data_root_annotatons_dets}{detection_name}',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -198,11 +202,13 @@ test_dataloader = dict(
         detection_type='val_detector',
         all_car=True,
         filter_stat_before=True,
-        stat_as_ignore_region=False))
+        stat_as_ignore_region=False,
+        load_dir='/workspace/Argoverse2/train'))
 
 val_evaluator = dict(
     type='WaymoMetric',
-    ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_val.pkl',
+    ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_train.pkl',
+    # ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_val.pkl',
     waymo_bin_file=f'{waymo_root}/gt.bin',
     data_root=f'{waymo_root}',
     backend_args=backend_args,
