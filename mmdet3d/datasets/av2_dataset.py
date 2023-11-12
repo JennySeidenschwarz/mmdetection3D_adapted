@@ -381,7 +381,9 @@ class AV2Dataset(KittiDataset):
             def convert2int(x): return self._class_dict_argo[x]
             raw_data_list['category'] = raw_data_list['category'].apply(convert2int)
         print(f'All labels {raw_data_list.shape[0]}')
+        print(self.ann_file2 is not '' and self.ann_file2[-3:] != 'pkl')
         if self.ann_file2 is not '' and self.ann_file2[-3:] != 'pkl':
+            
             raw_data_list['filter_moving'] = True
             print(f'Loading ann_file2 {self.ann_file2}')
             if os.path.isfile(self.ann_file2):
@@ -394,7 +396,7 @@ class AV2Dataset(KittiDataset):
                         raw_data_list2 = raw_data_list.append(feather.read_feather(os.path.join(self.ann_file2, f, 'annotations.feather')))
             raw_data_list2 = raw_data_list2.astype({'timestamp_ns': int})
             if raw_data_list2['category'].dtype == int:
-                def convert2int(x): return self._class_dict_waymo[x]
+                def convert2int(x): return self._class_dict_argo[x]
                 raw_data_list2['category'] = raw_data_list2['category'].apply(convert2int)
             raw_data_list = raw_data_list.append(raw_data_list2)
             print(f'Labels of both sources {raw_data_list.shape[0]}')
@@ -426,15 +428,17 @@ class AV2Dataset(KittiDataset):
         data_list = []
         num_ids = len(raw_data_list['log_id'].unique())
         count = 0
+        idx_to_my_idx = pd.DataFrame(columns=['idx', 'log_id', 'timestamp'])
         for i, log_id in enumerate(raw_data_list['log_id'].unique()):
             log_data = raw_data_list[raw_data_list['log_id'] == log_id]
             num_time = len(log_data['timestamp_ns'].unique())
             print(f'{i} / {num_ids}, in total {num_time} timestamps')
             for time in log_data['timestamp_ns'].unique():
                 raw_data_info_pkl = dict()
-                raw_data_info_pkl['sample_idx'] = f'{log_id}_{time}'
+                raw_data_info_pkl['sample_idx'] = count
+                idx_to_my_idx.loc[len(idx_to_my_idx.index)] = [count, log_id, time]
                 count += 1
-
+                raw_data_info_pkl['sample_idx_mine'] = f'{log_id}_{time}'
                 raw_data_info_pkl['timestamp'] = time
                 raw_data_info_pkl['ego2global'] = self.get_pose(log_id, time)
                 #raw_data_info_pkl['images'] = []
@@ -446,6 +450,9 @@ class AV2Dataset(KittiDataset):
                 raw_data_info_pkl['lidar_points'] = dict()
                 raw_data_info_pkl['lidar_points']['lidar_path'] = osp.join(
                             self.data_prefix.get('pts', ''), lidar_path)
+                if not os.path.isfile(raw_data_info_pkl['lidar_points']['lidar_path']):
+                    print('Oh no...')
+                    continue
                 raw_data_info_pkl['lidar_points']['num_pts_feats'] = 4
                 raw_data_info_pkl['lidar_path'] = osp.join(
                             self.data_prefix.get('pts', ''), lidar_path)
@@ -455,6 +462,7 @@ class AV2Dataset(KittiDataset):
                 # parse raw data information to target format
                 data_info = self._parse_data_info(
                     raw_data_info, raw_data_info_pkl, log_id)
+                
                 if isinstance(data_info, dict):
                     # For image tasks, `data_info` should information if single
                     # image, such as dict(img_path='xxx', width=360, ...)
@@ -472,7 +480,7 @@ class AV2Dataset(KittiDataset):
                 else:
                     raise TypeError('data_info should be a dict or list of dict, '
                                     f'but got {type(data_info)}')
-        
+        feather.write_feather(idx_to_my_idx, 'idx_to_my_idx.feather')
         return data_list
     
     def _parse_data_info(self, info, info_pkl, log_id) -> Union[dict, List[dict]]:
