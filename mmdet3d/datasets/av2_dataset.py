@@ -118,6 +118,7 @@ class AV2Dataset(KittiDataset):
                  only_matched=False,
                  stat_as_ignore_region=False,
                  filter_stat_before=False,
+                 work_dir='',
                  **kwargs) -> None:
         self.stat_as_ignore_region = stat_as_ignore_region
         self.filter_stat_before = filter_stat_before
@@ -134,6 +135,7 @@ class AV2Dataset(KittiDataset):
         self.tfrecord_pathnames = sorted(
             glob.glob(osp.join(load_dir, '*.tfrecord')))
         self.load_dir = load_dir
+        self.work_dir = work_dir
         self._class_dict_argo = {
             -1: 'UNMATCHED',
             1: 'REGULAR_VEHICLE',
@@ -480,7 +482,7 @@ class AV2Dataset(KittiDataset):
                 else:
                     raise TypeError('data_info should be a dict or list of dict, '
                                     f'but got {type(data_info)}')
-        feather.write_feather(idx_to_my_idx, 'idx_to_my_idx.feather')
+        feather.write_feather(idx_to_my_idx, f'{self.work_dir}/idx_to_my_idx.feather')
         return data_list
     
     def _parse_data_info(self, info, info_pkl, log_id) -> Union[dict, List[dict]]:

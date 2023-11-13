@@ -116,7 +116,9 @@ class WaymoDataset(KittiDataset):
                  only_matched=False,
                  stat_as_ignore_region=False,
                  filter_stat_before=False,
+                 work_dir='',
                  **kwargs) -> None:
+        self.work_dir = work_dir
         self.stat_as_ignore_region = stat_as_ignore_region
         self.filter_stat_before = filter_stat_before
         self.load_interval = load_interval
