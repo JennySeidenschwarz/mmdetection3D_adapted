@@ -170,9 +170,10 @@ class AV2Dataset(KittiDataset):
             30: 'ANIMAL',
             31: 'MOBILE_PEDESTRIAN_CROSSING_SIGN'}
         
-        self.selected_argo_classes = ['REGULAR_VEHICLE'] #[v for k, v in self._class_dict_argo.items() if not k in [-1, 3, 4, 5, 6, 31]]
+        self.selected_argo_classes = ['REGULAR_VEHICLE'] 
+        self.selectec_argo_classes = [v for k, v in self._class_dict_argo.items()]
 
-        self.argo_to_int = {c: i for i, c in enumerate(self.selected_argo_classes)}
+        self.argo_to_int = {'REGULAR_VEHICLE': 0}
         
         self.argo_to_kitti = {'REGULAR_VEHICLE': 'Car'}
 
@@ -498,4 +499,5 @@ class AV2Dataset(KittiDataset):
             info_pkl['eval_ann_info'] = self._parse_ann_info(info, info_pkl, log_id)
         # print(info_pkl['ann_info'])
         return info_pkl
+
 
