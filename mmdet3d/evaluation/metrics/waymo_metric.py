@@ -162,8 +162,6 @@ class WaymoMetric(KittiMetric):
         print(self.percentage, self.ann_file)
         self.data_infos = load(self.ann_file, detection_type=self.detection_type, percentage=self.percentage, all_car=self.all_car)['data_list']
         print(len(self.data_infos), len(results))
-        assert len(results) == len(self.data_infos), \
-            'invalid list length of network outputs'
         # different from kitti, waymo do not need to convert the ann file
         # handle the mv_image_based load_mode
         if self.load_type == 'mv_image_based':
@@ -207,7 +205,8 @@ class WaymoMetric(KittiMetric):
             pklfile_prefix=pklfile_prefix,
             submission_prefix=self.submission_prefix,
             classes=self.classes)
-
+        assert len(results) == len(self.data_infos), \
+            'invalid list length of network outputs'
         metric_dict = {}
 
         if self.format_only:

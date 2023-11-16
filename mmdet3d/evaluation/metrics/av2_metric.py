@@ -1,4 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import math
 import tempfile
 from os import path as osp
 from typing import Dict, List, Optional, Tuple, Union
@@ -141,10 +142,12 @@ class AV2Metric(KittiMetric):
                  collect_device: str = 'cpu',
                  backend_args: Optional[dict] = None,
                  idx2metainfo: Optional[str] = None, 
-                 work_dir: str = 'work_dir') -> None:
+                 work_dir: str = 'work_dir',
+                 num_workers: int = 64) -> None:
         # self.data_infos = load(self.ann_file, percentage=self.percentage)['data_list']
         self.waymo_bin_file = waymo_bin_file
         self.data_root = data_root
+        self.num_workers = num_workers
         if 'evaluation' in detection_type:
             self._split = 'validation'
         elif 'test' in detection_type:
@@ -234,11 +237,14 @@ class AV2Metric(KittiMetric):
             formatted result, tmp_dir is the temporal directory created for
             saving json files when jsonfile_prefix is not specified.
         """
+        torch.save(results, f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
+        # chunk_size = math.ceil(len(results)/self.num_workers)
+        # self.final_results = [results[i*chunk_size:(i+1)*chunk_size] for i in range(self.num_workers)]
+        # print(f'Num workers {self.num_workers} and parallel processes {len(self.final_results)}')
+        # mmengine.track_parallel_progress(self.convert_to_argo, range(len(self.final_results)), self.num_workers)
         self.final_results = [results]
-        
-        mmengine.track_parallel_progress(self.convert_to_argo, range(self.final_results), 64)
-        # for idx in range(len(self.final_results)):
-        #     self.convert_to_argo(idx)
+        for idx in range(len(self.final_results)):
+            self.convert_to_argo(idx)
 
         # combine
         paths = glob.glob(f'{self.work_dir}/intermediate/*')
@@ -258,9 +264,11 @@ class AV2Metric(KittiMetric):
     def convert_to_argo(self, idx):
         final_results = self.final_results[idx]
         argo_idx = feather.read_feather(f'{self.work_dir}/idx_to_my_idx.feather')
-        os.path.makedirs(os.path.join(self.work_dir, 'intermediate'), exist_ok=True)
+        os.makedirs(os.path.join(self.work_dir, 'intermediate'), exist_ok=True)
         df = pd.DataFrame(columns=column_names)
-        for i, res in enumerate(final_results):
+        count = 0
+        for j, res in enumerate(final_results):
+            print(idx, j)
             # Actually, `sample_idx` here is the filename without suffix.
             # It's for identitying the sample in formating.
             # res['sample_idx'] = self.data_infos[i]['sample_idx']
@@ -272,17 +280,16 @@ class AV2Metric(KittiMetric):
             _a2k = argo_idx[argo_idx['idx'] == res['sample_idx']]
             log_id = _a2k['log_id'].item()
             timestamp = _a2k['timestamp'].item()
-            for j in len(res):
+            for i in range(lidar_boxes.shape[0]):
                 data_row = self.parse_one_object(i, lidar_boxes, scores, labels, timestamp, log_id)
                 df.loc[len(df.index)] = data_row
-
                 if len(df) % 25000 == 0 and j != 0:
-                    print('Writing to ', os.path.join(self.work_dir, 'intermediate', f'{multi}_{count}.feather'))
-                    feather.write_feather(df, os.path.join(self.work_dir, 'intermediate', f'{multi}_{count}.feather'))
+                    print('Writing to ', os.path.join(self.work_dir, 'intermediate', f'{idx}_{count}.feather'))
+                    feather.write_feather(df, os.path.join(self.work_dir, 'intermediate', f'{idx}_{count}.feather'))
                     count += 1
                     df = pd.DataFrame(columns=column_names)
 
-            feather.write_feather(df, os.path.join(self.work_dir, 'intermediate', f'{multi}_{count}.feather'))
+            feather.write_feather(df, os.path.join(self.work_dir, 'intermediate', f'{idx}_{count}.feather'))
 
     def parse_one_object(self, index, lidar_boxes, scores, labels, timestamp, log_id):
         class_name = classes[labels[index].item()]
@@ -315,6 +322,6 @@ class AV2Metric(KittiMetric):
             lidar_boxes[index][1].item(),
             lidar_boxes[index][2].item() + height / 2,
             -1,
-            scores[index]]
+            scores[index].item()]
         
         return row
