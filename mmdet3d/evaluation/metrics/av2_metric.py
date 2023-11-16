@@ -15,6 +15,50 @@ from mmdet3d.structures import (Box3DMode, CameraInstance3DBoxes,
                                 LiDARInstance3DBoxes, bbox3d2result,
                                 points_cam2img, xywhr2xyxyr)
 from .kitti_metric import KittiMetric
+from scipy.spatial.transform import Rotation as R
+from pyarrow import feather 
+import os
+import pandas as pd
+import glob
+
+
+classes = ['Car', 'Pedestrian', 'Cyclist']
+
+column_names = [
+    'log_id',
+    'timestamp_ns',
+    'track_uuid',
+    'category',
+    'length_m',
+    'width_m',
+    'height_m',
+    'qw',
+    'qx',
+    'qy',
+    'qz',
+    'rot',
+    'tx_m',
+    'ty_m',
+    'tz_m',
+    'num_interior_pts',
+    'score']
+
+column_dtypes_dets_wo_traj = {
+        'log_id': str,
+    'timestamp_ns': 'int64',
+    'length_m': 'float32',
+    'width_m': 'float32',
+    'height_m': 'float32',
+    'qw': 'float32',
+    'qx': 'float32',
+    'qy': 'float32',
+    'qz': 'float32',
+    'tx_m': 'float32',
+    'ty_m': 'float32',
+    'tz_m': 'float32',
+    'rot': 'float32',
+    'num_interior_pts': 'int64',
+    'score': 'float32',}
 
 
 @METRICS.register_module()
@@ -190,16 +234,87 @@ class AV2Metric(KittiMetric):
             formatted result, tmp_dir is the temporal directory created for
             saving json files when jsonfile_prefix is not specified.
         """
-        final_results = results
+        self.final_results = [results]
+        
+        mmengine.track_parallel_progress(self.convert_to_argo, range(self.final_results), 64)
+        # for idx in range(len(self.final_results)):
+        #     self.convert_to_argo(idx)
+
+        # combine
+        paths = glob.glob(f'{self.work_dir}/intermediate/*')
+        all_df = None
+        for f in paths:
+            df = feather.read_feather(f)
+            if all_df is None:
+                all_df = df
+            else:
+                all_df = pd.concat([all_df, df])
+            os.remove(f)
+        feather.write_feather(all_df, os.path.join(self.work_dir, f'{self.percentage}_{self.detection_type}.feather'))
+
+        torch.save(self.final_results, f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
+        print('Stored to ...', f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
+
+    def convert_to_argo(self, idx):
+        final_results = self.final_results[idx]
+        argo_idx = feather.read_feather(f'{self.work_dir}/idx_to_my_idx.feather')
+        os.path.makedirs(os.path.join(self.work_dir, 'intermediate'), exist_ok=True)
+        df = pd.DataFrame(columns=column_names)
         for i, res in enumerate(final_results):
             # Actually, `sample_idx` here is the filename without suffix.
             # It's for identitying the sample in formating.
             # res['sample_idx'] = self.data_infos[i]['sample_idx']
             res['pred_instances_3d']['bboxes_3d'].limit_yaw(
                 offset=0.5, period=np.pi * 2)
+            lidar_boxes = res['pred_instances_3d']['bboxes_3d'].tensor
+            scores = res['pred_instances_3d']['scores_3d']
+            labels = res['pred_instances_3d']['labels_3d']
+            _a2k = argo_idx[argo_idx['idx'] == res['sample_idx']]
+            log_id = _a2k['log_id'].item()
+            timestamp = _a2k['timestamp'].item()
+            for j in len(res):
+                data_row = self.parse_one_object(i, lidar_boxes, scores, labels, timestamp, log_id)
+                df.loc[len(df.index)] = data_row
 
-        torch.save(final_results, f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
-        print('Stored to ...', f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
+                if len(df) % 25000 == 0 and j != 0:
+                    print('Writing to ', os.path.join(self.work_dir, 'intermediate', f'{multi}_{count}.feather'))
+                    feather.write_feather(df, os.path.join(self.work_dir, 'intermediate', f'{multi}_{count}.feather'))
+                    count += 1
+                    df = pd.DataFrame(columns=column_names)
 
+            feather.write_feather(df, os.path.join(self.work_dir, 'intermediate', f'{multi}_{count}.feather'))
 
+    def parse_one_object(self, index, lidar_boxes, scores, labels, timestamp, log_id):
+        class_name = classes[labels[index].item()]
 
+        height = lidar_boxes[index][5].item()
+        heading = lidar_boxes[index][6].item()
+
+        while heading < -np.pi:
+            heading += 2 * np.pi
+        while heading > np.pi:
+            heading -= 2 * np.pi
+        
+        r = R.from_euler('z', heading)
+        quat = r.as_quat()
+
+        row = [
+            log_id,
+            timestamp,
+            -1,
+            class_name,
+            lidar_boxes[index][3].item(),
+            lidar_boxes[index][4].item(),
+            height,
+            quat[3],
+            quat[0],
+            quat[1],
+            quat[2],
+            heading,
+            lidar_boxes[index][0].item(),
+            lidar_boxes[index][1].item(),
+            lidar_boxes[index][2].item() + height / 2,
+            -1,
+            scores[index]]
+        
+        return row
