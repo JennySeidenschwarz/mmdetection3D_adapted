@@ -309,7 +309,7 @@ class AV2Metric(KittiMetric):
             log_id,
             timestamp,
             -1,
-            class_name,
+            'REGULAR_VEHICLE',#class_name,
             lidar_boxes[index][3].item(),
             lidar_boxes[index][4].item(),
             height,

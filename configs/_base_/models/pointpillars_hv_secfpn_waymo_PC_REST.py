@@ -108,6 +108,6 @@ model = dict(
             nms_across_levels=False,
             nms_pre=4096,
             nms_thr=0.25,
-            score_thr=0.0,
+            score_thr=0.1,
             min_bbox_size=0,
             max_num=500)))

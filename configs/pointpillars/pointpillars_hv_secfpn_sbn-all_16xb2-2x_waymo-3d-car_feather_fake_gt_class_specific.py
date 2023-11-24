@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/models/pointpillars_hv_secfpn_waymo_PC_REST.py',
+    '../_base_/models/pointpillars_hv_secfpn_waymo.py',
     '../_base_/datasets/waymoD5-3d-car_feather_fake_gt_THREE_CLASS.py',
     '../_base_/schedules/schedule-2x.py',
     '../_base_/default_runtime.py',

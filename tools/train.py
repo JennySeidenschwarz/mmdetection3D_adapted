@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from mmdet3d.datasets.av2_dataset import AV2Dataset
+from  mmdet3d.evaluation.metrics.av2_metric import AV2Metric 
 import torch.distributed as dist
 import datetime
 import wandb
@@ -76,11 +77,12 @@ def parse_args():
     parser.add_argument('--test_detection_set', default='val_detector')
     parser.add_argument('--train_detection_set', default='train_detector')
     parser.add_argument('--pseudo_label_path', default='')
+    parser.add_argument('--test_label_path')
     parser.add_argument('--all_car', default=False)
     parser.add_argument('--stat_as_ignore_region', default=False)
     parser.add_argument('--filter_stat_before', default=False)
     parser.add_argument('--min_num_pts_filtered', default=0)
-
+    parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument(
         '--score-thr', type=float, default=0.1, help='bbox score threshold')
     parser.add_argument(
@@ -131,12 +133,14 @@ def main():
     cfg.train_dataloader.dataset.dataset['all_car'] = args.all_car
     cfg.train_dataloader.dataset.dataset['stat_as_ignore_region'] = args.stat_as_ignore_region
     cfg.train_dataloader.dataset.dataset['filter_stat_before'] = args.filter_stat_before
+    cfg.train_dataloader.batch_size = int(args.batch_size) 
     pseudo_add = ''
     if args.pseudo_label_path != '':
         pseudo_add = f'_{args.pseudo_label_path}'[:30]
         cfg.train_dataloader.dataset.dataset['pseudo_labels'] = cfg.train_dataloader.dataset.dataset['data_root']+args.pseudo_label_path
     print('Using Pseudo labels ', cfg.train_dataloader.dataset.dataset['pseudo_labels'])
     cfg.val_dataloader.dataset['percentage'] = float(args.percentage_val)
+    cfg.val_dataloader.dataset['detection_type'] = args.test_detection_set
     cfg.test_dataloader.dataset['percentage'] = float(args.percentage_val)
     cfg.test_dataloader.dataset['detection_type'] = args.test_detection_set
 
@@ -151,6 +155,16 @@ def main():
         rel_annotations_dir = '../../waymo_kitti_format_annotaions/kitti_format'
         cfg.test_dataloader.dataset['ann_file'] = f'{rel_annotations_dir}/waymo_infos_val.pkl'
         cfg.test_evaluator['ann_file'] = f'{data_root}/{rel_annotations_dir}/waymo_infos_val.pkl'
+        if 'av' in args.config:
+            cfg.test_dataloader.dataset['load_dir'] = cfg.test_dataloader.dataset['load_dir'].split('/')[:-1] + ['val']
+            cfg.test_dataloader.dataset['load_dir'] = '/'.join(cfg.test_dataloader.dataset['load_dir'])
+            cfg.test_dataloader.dataset['pseudo_labels'] = '/workspace/ExchangeWorkspace/detections_train_detector/ArgoFiltered_GT/val_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather'
+    elif 'av' in args.config:
+        cfg.test_dataloader.dataset['load_dir'] = cfg.test_dataloader.dataset['load_dir'].split('/')[:-1] + ['train']
+        cfg.test_dataloader.dataset['load_dir'] = '/'.join(cfg.test_dataloader.dataset['load_dir'])
+    
+    if args.test_label_path:
+        cfg.test_dataloader.dataset['pseudo_labels'] = args.test_label_path
 
     # add wandb
     wandb.login(key='3b716e6ab76d92ef92724aa37089b074ef19e29c') 
@@ -183,7 +197,8 @@ def main():
         # use config filename as default work_dir if cfg.work_dir is None
         cfg.work_dir = osp.join('./work_dirs',
                                 osp.splitext(osp.basename(args.config))[0] + f'_{args.percentage_train}_{args.percentage_val}_{args.filter_stat_before}_{args.all_car}_{args.train_detection_set}{pseudo_add}')
-    
+    cfg.val_dataloader.dataset['work_dir'] = cfg.work_dir
+    cfg.test_dataloader.dataset['work_dir'] = cfg.work_dir
     cfg.val_evaluator['work_dir'] = cfg.work_dir
     cfg.test_evaluator['work_dir'] = cfg.work_dir 
     

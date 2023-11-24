@@ -171,7 +171,7 @@ class AV2Dataset(KittiDataset):
             31: 'MOBILE_PEDESTRIAN_CROSSING_SIGN'}
         
         self.selected_argo_classes = ['REGULAR_VEHICLE'] 
-        self.selectec_argo_classes = [v for k, v in self._class_dict_argo.items()]
+        self.selected_argo_classes = [v for k, v in self._class_dict_argo.items()]
 
         self.argo_to_int = {'REGULAR_VEHICLE': 0}
         

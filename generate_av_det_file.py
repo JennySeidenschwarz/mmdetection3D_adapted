@@ -41,6 +41,7 @@ column_names = [
 
 def main(file, save_dir):
     save_path = os.path.join(save_dir, file.split('/')[1])
+    print((os.path.join(save_dir, file.split('/')[1])))
     os.makedirs(os.path.join(save_dir, file.split('/')[1]), exist_ok=True)
     os.makedirs(os.path.join(save_path, 'intermediate'), exist_ok=True)
     

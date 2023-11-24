@@ -82,7 +82,7 @@ def get_waymo2kitti(detection_type, percentage):
 
     return waymo2kitti
 
-def main(file, save_dir, detection_type, percentage, argo=False):
+def main(file, save_dir, detection_type, percentage, argo=False, num_workers=64):
     detections = torch.load(file)
     save_path = os.path.join(save_dir, file.split('/')[1])
     file_name = file.split('/')[2][:-3] + 'feather'
@@ -90,7 +90,7 @@ def main(file, save_dir, detection_type, percentage, argo=False):
     waymo2kitti = get_waymo2kitti(detection_type, percentage)
     os.makedirs(os.path.join(save_dir, file.split('/')[1]), exist_ok=True)
     os.makedirs(os.path.join(save_path, 'intermediate'), exist_ok=True)
-     
+    
     convert(detections, waymo2kitti, save_path, os.path.dirname(file), argo=argo)
 
     paths = glob.glob(f'{save_path}/intermediate/*')

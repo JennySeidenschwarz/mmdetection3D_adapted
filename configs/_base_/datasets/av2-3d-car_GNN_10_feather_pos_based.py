@@ -80,8 +80,8 @@ test_pipeline = [
     dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
-        load_dim=6,
-        use_dim=5,
+        load_dim=4,
+        use_dim=4,
         backend_args=backend_args),
     dict(
         type='MultiScaleFlipAug3D',
@@ -106,8 +106,8 @@ eval_pipeline = [
     dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
-        load_dim=6,
-        use_dim=5,
+        load_dim=4,
+        use_dim=4,
         backend_args=backend_args),
     dict(
         type='MultiScaleFlipAug3D',
@@ -167,18 +167,18 @@ val_dataloader = dict(
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
         # ann_file=f'{rel_annotations_dir}/waymo_infos_val.pkl',
         ann_file=f'{rel_annotations_dir}/waymo_infos_train.pkl',
-        pseudo_labels=f'/workspace/ExchangeWorkspace/Argoverse2_filtered/train_1.0_per_frame_remove_non_move_remove_far_filtered_version.feather',
+        pseudo_labels=f'/workspace/ExchangeWorkspace/detections_train_detector/ArgoFiltered_GT/val_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0_withwaymovel.feather',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
         metainfo=metainfo,
         box_type_3d='LiDAR',
         backend_args=backend_args,
-        detection_type='val_detector',
+        detection_type='val_evaluation',
         all_car=True,
         filter_stat_before=False,
         stat_as_ignore_region=False,
-        load_dir='/workspace/Argoverse2/train'))
+        load_dir='/workspace/Argoverse2/val'))
 
 test_dataloader = dict(
     batch_size=1,
@@ -192,7 +192,7 @@ test_dataloader = dict(
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
         # ann_file=f'{rel_annotations_dir}/waymo_infos_val.pkl',
         ann_file=f'{rel_annotations_dir}/waymo_infos_train.pkl',
-        pseudo_labels=f'{data_root_annotatons_dets}{detection_name}',
+        pseudo_labels='/workspace/ExchangeWorkspace/detections_train_detector/ArgoFiltered_GT/train_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather', #f'/workspace/ExchangeWorkspace/detections_train_detector/ArgoFiltered_GT/train_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -203,10 +203,10 @@ test_dataloader = dict(
         all_car=True,
         filter_stat_before=True,
         stat_as_ignore_region=False,
-        load_dir='/workspace/Argoverse2/train'))
+        load_dir='/workspace/Argoverse2/val'))
 
 val_evaluator = dict(
-    type='WaymoMetric',
+    type='AV2Metric',
     ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_train.pkl',
     # ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_val.pkl',
     waymo_bin_file=f'{waymo_root}/gt.bin',

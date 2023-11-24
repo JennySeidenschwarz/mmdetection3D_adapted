@@ -17,13 +17,19 @@ model = dict(
         anchor_generator=dict(
             type='AlignedAnchor3DRangeGenerator',
             # ranges=[[-74.88, -74.88, -0.0345, 74.88, 74.88, -0.0345]],
-            ranges=[[-74.88, -74.88, -0.0345, 74.88, 74.88, -0.0345],
+            ranges=[[-74.88, -74.88, 0, 74.88, 74.88, 0],
                     [-74.88, -74.88, 0, 74.88, 74.88, 0],
-                    [-74.88, -74.88, -0.1188, 74.88, 74.88, -0.1188]],
+                    [-74.88, -74.88, 0, 74.88, 74.88, 0],
+                    [-74.88, -74.88, 0, 74.88, 74.88, 0],
+                    [-74.88, -74.88, 0, 74.88, 74.88, 0],
+                    [-74.88, -74.88, 0, 74.88, 74.88, 0],],
             sizes=[
-                [4.73, 2.08, 1.77],  # car
-                [0.91, 0.84, 1.74],  # pedestrian
-                [1.81, 0.84, 1.77]  # cyclist
+                [0.75, 0.75, 0.75],  # car
+                [1.5, 0.75, 1.5],  # pedestrian
+                [4.5, 2, 1.5],  # cyclist
+                [6, 2.5, 2],
+                [9, 3, 3],
+                [13, 3, 3.5],
             ],
             rotations=[0, 1.57],
             reshape_out=True)),
@@ -48,6 +54,6 @@ model = dict(
 #       or not by default.
 #   - `base_batch_size` = (16 GPUs) x (2 samples per GPU).
 auto_scale_lr = dict(enable=False, base_batch_size=32)
-vis_backends = [dict(type='LocalVisBackend'), dict(type='WandbVisBackend')]
-visualizer = dict(
-    type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
+# vis_backends = [dict(type='LocalVisBackend'), dict(type='WandbVisBackend')]
+# visualizer = dict(
+#     type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
