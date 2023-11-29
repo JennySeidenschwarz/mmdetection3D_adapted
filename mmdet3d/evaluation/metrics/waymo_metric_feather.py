@@ -123,7 +123,7 @@ class WaymoMetricFeather(KittiMetric):
         else:
             self.idx2metainfo = None
 
-        super(WaymoMetric, self).__init__(
+        super(WaymoMetricFeather, self).__init__(
             ann_file=ann_file,
             percentage=percentage,
             detection_type=detection_type,
@@ -403,9 +403,9 @@ class WaymoMetricFeather(KittiMetric):
         
         torch.save(final_results, f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
         print('Stored to ...', f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
-        from ..functional.waymo_utils.prediction_to_waymo import \
-            Prediction2Waymo
-        converter = Prediction2Waymo(
+        from ..functional.waymo_utils.prediction_to_waymo_feather import \
+            Prediction2WaymoFeather
+        converter = Prediction2WaymoFeather(
             final_results,
             waymo_tfrecords_dir,
             waymo_results_save_dir,
