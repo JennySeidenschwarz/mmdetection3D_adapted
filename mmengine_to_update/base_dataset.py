@@ -316,18 +316,7 @@ class BaseDataset(Dataset):
         # Get subset data according to indices.
         if self._indices is not None:
             self.data_list = self._get_unserialized_subset(self._indices)
-        self.index = [0] * len(self.data_list) 
-        if self.ann_file2 is not '' and self.ann_file2[-3:] == 'pkl':
-            ann_file = copy.deepcopy(self.ann_file)
-            data_list = copy.deepcopy(self.data_list)
-            self.ann_file = self.ann_file2
-            # load data information
-            self.data_list = self.load_data_list(self.detection_type2, ann_file2=True)
-            # filter illegal data, such as data that has no annotations.
-            print("Loaded data source 2...")
-            self.data_list = self.filter_data()
-            self.data_list = self.data_list + data_list
-            self.index.extend([1] * len(self.data_list))
+
         # serialize data_list
         print("Serializing data...")
         if self.serialize_data:
@@ -438,16 +427,7 @@ class BaseDataset(Dataset):
             data = self.prepare_data(idx)
             # Broken images or random augmentations may cause the returned data
             # to be None
-            if data is not None:
-                inf_test = torch.isinf(data['data_samples'].gt_instances_3d.bboxes_3d.tensor).any()
-            else:
-                inf_test = False
-            
-            if inf_test:
-                print("IIIIINF")
-                quit()
-            
-            if data is None or inf_test:
+            if data is None:
                 idx = self._rand_another()
                 continue
             return data

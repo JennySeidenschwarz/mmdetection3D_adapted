@@ -24,7 +24,7 @@ from pathlib import Path
 from pyarrow import feather
 
 
-@DATASETS.register_module()
+@DATASETS.register_module() 
 class AV2FeatherDataset(KittiDataset):
     """Waymo Dataset.
 
@@ -77,8 +77,6 @@ class AV2FeatherDataset(KittiDataset):
         pcd_limit_range (List[float]): The range of point cloud
             used to filter invalid predicted boxes.
             Defaults to [-85, -85, -5, 85, 85, 5].
-        cam_sync_instances (bool): If use the camera sync label
-            supported from waymo version 1.3.1. Defaults to False.
         load_interval (int): load frame interval. Defaults to 1.
         max_sweeps (int): max sweep for each frame. Defaults to 0.
     """
@@ -93,7 +91,6 @@ class AV2FeatherDataset(KittiDataset):
 
     def __init__(self,
                  data_root: str,
-                 ann_file: str,
                  data_prefix: dict = dict(
                      pts='velodyne',
                      CAM_FRONT='image_0',
@@ -103,19 +100,16 @@ class AV2FeatherDataset(KittiDataset):
                      CAM_SIDE_RIGHT='image_4'),
                  pipeline: List[Union[dict, Callable]] = [],
                  modality: dict = dict(use_lidar=True),
-                 default_cam_key: str = 'CAM_FRONT',
                  box_type_3d: str = 'LiDAR',
                  load_type: str = 'frame_based',
                  filter_empty_gt: bool = True,
                  test_mode: bool = False,
                  pcd_limit_range: List[float] = [0, -40, -3, 70.4, 40, 0.0],
-                 cam_sync_instances: bool = False,
                  load_interval: int = 1,
                  max_sweeps: int = 0,
                  pseudo_labels = None,
                  load_dir='/workspace/waymo/waymo_format/training',
                  filter_empty_3dboxes=True,
-                 only_matched=False,
                  stat_as_ignore_region=False,
                  filter_stat_before=False,
                  work_dir='',
@@ -124,13 +118,11 @@ class AV2FeatherDataset(KittiDataset):
         self.filter_stat_before = filter_stat_before
         self.load_interval = load_interval
         # set loading mode for different task settings
-        self.cam_sync_instances = cam_sync_instances
         # construct self.cat_ids for vision-only anns parsing
         self.cat_ids = range(len(self.METAINFO['classes']))
         self.cat2label = {cat_id: i for i, cat_id in enumerate(self.cat_ids)}
         self.max_sweeps = max_sweeps
         self.pseudo_labels = pseudo_labels
-        self.only_matched = only_matched
         self.filter_empty_3dboxes = filter_empty_3dboxes
         self.tfrecord_pathnames = sorted(
             glob.glob(osp.join(load_dir, '*.tfrecord')))
@@ -182,13 +174,11 @@ class AV2FeatherDataset(KittiDataset):
         # while ceph loading for Prediction2Waymo
         super().__init__(
             data_root=data_root,
-            ann_file=ann_file,
             pipeline=pipeline,
             modality=modality,
             box_type_3d=box_type_3d,
             filter_empty_gt=filter_empty_gt,
             pcd_limit_range=pcd_limit_range,
-            default_cam_key=default_cam_key,
             data_prefix=data_prefix,
             test_mode=test_mode,
             load_type=load_type,
@@ -265,22 +255,6 @@ class AV2FeatherDataset(KittiDataset):
             r = R.from_quat([obj['qx'], obj['qy'], obj['qz'], obj['qw']])
             rotation_y = r.as_euler('xyz')[-1]
             
-            '''
-            # project bounding box to the virtual reference frame
-            T_velo_to_front_cam = self._get_T_velo_to_front_cam(log_id, frame_idx)
-            pt_ref = T_velo_to_front_cam @ \
-                np.array([x, y, z, 1]).reshape((4, 1))
-            x, y, z, _ = pt_ref.flatten().tolist()
-
-            bounding_box_3d = np.array([[
-                round(x, 2),
-                round(y, 2),
-                round(z, 2),
-                round(length, 2),
-                round(height, 2),
-                round(width, 2),
-                round(rotation_y, 2)]], dtype=np.float32)
-            '''
             bounding_box_3d = np.array([[
                 round(x, 2),
                 round(y, 2),
@@ -306,7 +280,10 @@ class AV2FeatherDataset(KittiDataset):
         
         # if no bbs
         if len(bbs3d) == 0:
-            return np.zeros((0, 7), dtype=np.float32), np.zeros(0, dtype=np.int64), np.zeros((dets.shape[0], 4), dtype=np.float32), np.zeros(0, dtype=np.int64), np.zeros((0, 2), dtype=np.float32), np.zeros((0), dtype=np.float32), np.zeros((0, 7), dtype=np.float32)
+            return np.zeros((0, 7), dtype=np.float32), np.zeros(0, dtype=np.int64), \
+                np.zeros((dets.shape[0], 4), dtype=np.float32), \
+                    np.zeros(0, dtype=np.int64), np.zeros((0, 2), dtype=np.float32), \
+                        np.zeros((0), dtype=np.float32), np.zeros((0, 7), dtype=np.float32)
 
         bbs3d = np.vstack(bbs3d)
         types = np.stack(types)
@@ -315,33 +292,32 @@ class AV2FeatherDataset(KittiDataset):
         else:
             ignore_bbs3d = np.zeros((0, 7), dtype=np.float32)
         
-        return bbs3d, types, np.zeros((dets.shape[0], 4), dtype=np.float32), np.zeros((dets.shape[0]), dtype=np.int64), np.zeros((dets.shape[0], 2), dtype=np.float32), np.zeros((dets.shape[0]), dtype=np.float32), ignore_bbs3d
+        return bbs3d, types, np.zeros((dets.shape[0], 4), dtype=np.float32), \
+            np.zeros((dets.shape[0]), dtype=np.int64), np.zeros((dets.shape[0], 2), \
+                dtype=np.float32), np.zeros((dets.shape[0]), dtype=np.float32), ignore_bbs3d
 
-    def load_data_list(self, detection_type, ann_file2=False) -> List[dict]:
+    def load_data_list(self, detection_type, pseudo_labels2=False) -> List[dict]:
         """Add the load interval."""
-        if self.pseudo_labels is None or ann_file2:
-            data_list = super().load_data_list(detection_type=detection_type)
-        else:
-            if not os.path.isfile(self.pseudo_labels):
-                self.pseudo_labels = os.path.join(self.pseudo_labels, self.detection_type)
-            self.tfrecord_pathnames = {
-                p.split('/')[-1].split('-')[1].split('_')[0]: p for p in self.tfrecord_pathnames}
-            self.T_velo_to_front_cam_dict = defaultdict(dict)
-            if os.path.isfile('T_velo_to_front_cam_dict_train.npz'):
-                self.T_velo_to_front_cam_dict = np.load(
-                        'T_velo_to_front_cam_dict_train.npz', allow_pickle=True)['T_velo_to_front_cam_dict'].item()
+        if not os.path.isfile(self.pseudo_labels):
+            self.pseudo_labels = os.path.join(self.pseudo_labels, self.detection_type)
+        self.tfrecord_pathnames = {
+            p.split('/')[-1].split('-')[1].split('_')[0]: p for p in self.tfrecord_pathnames}
+        self.T_velo_to_front_cam_dict = defaultdict(dict)
+        if os.path.isfile('T_velo_to_front_cam_dict_train.npz'):
+            self.T_velo_to_front_cam_dict = np.load(
+                    'T_velo_to_front_cam_dict_train.npz', allow_pickle=True)['T_velo_to_front_cam_dict'].item()
 
-            with open(f'/workspace/ExchangeWorkspace/new_seq_splits_AV2_fixed_val//{self.percentage}_{self.detection_type}.txt', 'r') as f:
-                self.seqs = f.read()
-                self.seqs = self.seqs.split('\n')
-                self.seqs = [s for s in self.seqs]
-            if self.ann_file2 is not '' and self.ann_file2[-3:] != 'pkl':
-                with open(f'/workspace/ExchangeWorkspace/new_seq_splits_AV2_fixed_val/{self.percentage}_train_gnn.txt', 'r') as f:
-                    seqs2 = f.read()
-                    seqs2 = seqs2.split('\n')
-                    seqs2 = [s for s in seqs2]
-                    self.seqs = self.seqs + seqs2
-            data_list = self._load_data_list()
+        with open(f'/workspace/ExchangeWorkspace/new_seq_splits_AV2_fixed_val//{self.percentage}_{self.detection_type}.txt', 'r') as f:
+            self.seqs = f.read()
+            self.seqs = self.seqs.split('\n')
+            self.seqs = [s for s in self.seqs]
+        if self.pseudo_labels2 is not '' and self.pseudo_labels2[-3:] != 'pkl':
+            with open(f'/workspace/ExchangeWorkspace/new_seq_splits_AV2_fixed_val/{self.percentage}_train_gnn.txt', 'r') as f:
+                seqs2 = f.read()
+                seqs2 = seqs2.split('\n')
+                seqs2 = [s for s in seqs2]
+                self.seqs = self.seqs + seqs2
+        data_list = self._load_data_list()
         data_list = data_list[::self.load_interval]
         return data_list
     
@@ -384,19 +360,18 @@ class AV2FeatherDataset(KittiDataset):
             def convert2int(x): return self._class_dict_argo[x]
             raw_data_list['category'] = raw_data_list['category'].apply(convert2int)
         print(f'All labels {raw_data_list.shape[0]}')
-        print(self.ann_file2 is not '' and self.ann_file2[-3:] != 'pkl')
-        if self.ann_file2 is not '' and self.ann_file2[-3:] != 'pkl':
-            
+        print(self.pseudo_labels2 is not '' and self.pseudo_labels2[-3:] != 'pkl')
+        if self.pseudo_labels2 is not '' and self.pseudo_labels2[-3:] != 'pkl':
             raw_data_list['filter_moving'] = True
-            print(f'Loading ann_file2 {self.ann_file2}')
-            if os.path.isfile(self.ann_file2):
-                raw_data_list2 = feather.read_feather(os.path.join(self.ann_file2))
+            print(f'Loading pseudo_labels2 {self.pseudo_labels2}')
+            if os.path.isfile(self.pseudo_labels2):
+                raw_data_list2 = feather.read_feather(os.path.join(self.pseudo_labels2))
             else:
-                for i, f in enumerate(os.listdir(self.ann_file2)):
+                for i, f in enumerate(os.listdir(self.pseudo_labels2)):
                     if i == 0:
-                        raw_data_list2 = feather.read_feather(os.path.join(self.ann_file2, f, 'annotations.feather'))
+                        raw_data_list2 = feather.read_feather(os.path.join(self.pseudo_labels2, f, 'annotations.feather'))
                     else:
-                        raw_data_list2 = raw_data_list.append(feather.read_feather(os.path.join(self.ann_file2, f, 'annotations.feather')))
+                        raw_data_list2 = raw_data_list.append(feather.read_feather(os.path.join(self.pseudo_labels2, f, 'annotations.feather')))
             raw_data_list2 = raw_data_list2.astype({'timestamp_ns': int})
             if raw_data_list2['category'].dtype == int:
                 def convert2int(x): return self._class_dict_argo[x]
@@ -408,10 +383,6 @@ class AV2FeatherDataset(KittiDataset):
         raw_data_list = raw_data_list[raw_data_list['log_id'].isin(seqs)]
         print(f'Labels of valid sequences {raw_data_list.shape[0]}')
         raw_data_list = raw_data_list.astype({'log_id': str})
-        if self.only_matched:
-            print(f'All detections {raw_data_list.shape[0]}')
-            raw_data_list = raw_data_list[raw_data_list['matched_category'] != 'TYPE_UNKNOWN']
-            print(f'Only matched detections {raw_data_list.shape[0]}')
         
         if self.filter_stat_before and 'filter_moving' in raw_data_list.columns:
             raw_data_list = raw_data_list[raw_data_list['filter_moving']]
@@ -445,7 +416,6 @@ class AV2FeatherDataset(KittiDataset):
                 raw_data_info_pkl['timestamp'] = time
                 raw_data_info_pkl['ego2global'] = self.get_pose(log_id, time)
                 #raw_data_info_pkl['images'] = []
-                #raw_data_info_pkl['cam_sync_instances'] = []
                 #raw_data_info_pkl['cam_instances'] = []
 
                 raw_data_info = log_data[log_data['timestamp_ns'] == time]

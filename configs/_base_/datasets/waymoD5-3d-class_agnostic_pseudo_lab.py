@@ -119,10 +119,8 @@ train_dataloader = dict(
         dataset=dict(
             type=dataset_type,
             data_root=data_root_annotatons_dets,
-            ann_file='/workspace/mmdetection3d/waymo_debug_infos_train_dict.pkl', #
             pseudo_labels=f'{data_root_annotatons_dets}{detection_name}',
-            # ann_file2=f'{data_root_annotatons}waymo_infos_train.pkl',
-            ann_file2='/workspace/ExchangeWorkspace/Waymo_Converted_filtered/train_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0_withwaymovel.feather',
+            pseudo_labels2='/workspace/ExchangeWorkspace/Waymo_Converted_filtered/train_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0_withwaymovel.feather',
             data_prefix=dict(
                 pts=f'{data_root}training/velodyne', sweeps='training/velodyne'),
             pipeline=train_pipeline,
@@ -147,8 +145,6 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
-        # ann_file=f'{rel_annotations_dir}/waymo_infos_val.pkl',
-        ann_file=f'{rel_annotations_dir}/waymo_infos_train.pkl',
         pseudo_labels=f'/workspace/ExchangeWorkspace/detections_train_detector/Waymo_Converted_filtered/train_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather',
         pipeline=eval_pipeline,
         modality=input_modality,
@@ -169,8 +165,6 @@ test_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
-        # ann_file=f'{rel_annotations_dir}/waymo_infos_val.pkl',
-        ann_file=f'{rel_annotations_dir}/waymo_infos_train.pkl',
         pseudo_labels=f'/workspace/ExchangeWorkspace/detections_train_detector/Waymo_Converted_filtered/val_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather',
         pipeline=eval_pipeline,
         modality=input_modality,
@@ -183,9 +177,6 @@ test_dataloader = dict(
 
 val_evaluator = dict(
     type='WaymoMetricFeather',
-    ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_train.pkl',
-    # ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_val.pkl',
-    waymo_bin_file=f'{original_dataset_root}/gt.bin',
     data_root=f'{original_dataset_root}',
     backend_args=backend_args,
     convert_kitti_format=False)
