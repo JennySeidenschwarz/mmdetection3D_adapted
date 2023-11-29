@@ -517,4 +517,3 @@ class PointsRangeFilterFeather(BaseTransform):
         repr_str = self.__class__.__name__
         repr_str += f'(point_cloud_range={self.pcd_range.tolist()})'
         return repr_str
-

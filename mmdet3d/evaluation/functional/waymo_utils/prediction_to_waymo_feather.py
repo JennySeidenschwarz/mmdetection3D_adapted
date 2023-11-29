@@ -22,6 +22,46 @@ import mmengine
 import numpy as np
 import tensorflow as tf
 import os
+from scipy.spatial.transform import Rotation as R
+import pandas as pd
+from pyarrow import feather
+
+
+column_names = [
+    'log_id',
+    'timestamp_ns',
+    'track_uuid',
+    'category',
+    'length_m',
+    'width_m',
+    'height_m',
+    'qw',
+    'qx',
+    'qy',
+    'qz',
+    'rot',
+    'tx_m',
+    'ty_m',
+    'tz_m',
+    'num_interior_pts',
+    'score']
+
+column_dtypes_dets_wo_traj = {
+        'log_id': str,
+    'timestamp_ns': 'int64',
+    'length_m': 'float32',
+    'width_m': 'float32',
+    'height_m': 'float32',
+    'qw': 'float32',
+    'qx': 'float32',
+    'qy': 'float32',
+    'qz': 'float32',
+    'tx_m': 'float32',
+    'ty_m': 'float32',
+    'tz_m': 'float32',
+    'rot': 'float32',
+    'num_interior_pts': 'int64',
+    'score': 'float32',}
 
 
 class Prediction2WaymoFeather(object):
@@ -149,7 +189,7 @@ class Prediction2WaymoFeather(object):
                     os.path.basename(p).split('-')[1].split('_')[0] in log_ids]
         else:
             self.filtered_waymo_tfrecord_pathnames = self.filtered_waymo_tfrecord_pathnames
-        print('xx', len(self.waymo_tfrecord_pathnames), 'tfrecords found.')
+        print(len(self.waymo_tfrecord_pathnames), 'tfrecords found...')
 
     def create_folder(self):
         """Create folder for data conversion."""
@@ -244,7 +284,6 @@ class Prediction2WaymoFeather(object):
             file_idx (int): Index of the file to be converted.
         """
         file_pathname = self.waymo_tfrecord_pathnames[file_idx]
-        print(file_pathname)
         if 's3://' in file_pathname and tf.__version__ >= '2.6.0':
             try:
                 import tensorflow_io as tfio  # noqa: F401
@@ -256,10 +295,10 @@ class Prediction2WaymoFeather(object):
         # if using subset for evaluation filter tf files
         if file_pathname not in self.filtered_waymo_tfrecord_pathnames:
             return
-        print('loading')
         file_data = tf.data.TFRecordDataset(file_pathname, compression_type='')
-        print('iterate over file data')
+
         for frame_num, frame_data in enumerate(file_data):
+            df = pd.DataFrame(columns=column_names)
             frame = open_dataset.Frame()
             frame.ParseFromString(bytearray(frame_data.numpy()))
 
@@ -286,13 +325,15 @@ class Prediction2WaymoFeather(object):
                                                  frame_timestamp_micros)
                 else:
                     index = self.name2idx[filename]
-                    objects = self.parse_objects_from_origin(
+                    objects, df = self.parse_objects_from_origin(
                         self.results[index], context_name,
-                        frame_timestamp_micros)
+                        frame_timestamp_micros, df)
 
             else:
                 # print(filename, 'not found.')
                 objects = metrics_pb2.Objects()
+            
+            feather.write_feather(df, os.path.join(self.work_dir, 'intermediate', f'{frame_num}.feather'))
             
             with open(
                     join(self.waymo_results_save_dir, f'{filename}.bin'),
@@ -323,7 +364,7 @@ class Prediction2WaymoFeather(object):
             f.write(objects.SerializeToString())
 
     def parse_objects_from_origin(self, result: dict, contextname: str,
-                                  timestamp: str) -> Objects:
+                                  timestamp: str, df) -> Objects:
         """Parse obejcts from the original prediction results.
 
         Args:
@@ -365,20 +406,44 @@ class Prediction2WaymoFeather(object):
             o.context_name = contextname
             o.frame_timestamp_micros = timestamp
 
-            return o
+            r = R.from_euler('z', heading)
+            quat = r.as_quat()
 
+            row = [
+                timestamp,
+                -1,
+                'REGULAR_VEHICLE',#class_name,
+                lidar_boxes[index][3].item(),
+                lidar_boxes[index][4].item(),
+                height,
+                quat[3],
+                quat[0],
+                quat[1],
+                quat[2],
+                heading,
+                lidar_boxes[index][0].item(),
+                lidar_boxes[index][1].item(),
+                lidar_boxes[index][2].item() + height / 2,
+                -1,
+                scores[index].item()]
+
+            return o, row
+
+        log_id = contextname.split('-')[1].split('_')[0]
         objects = metrics_pb2.Objects()
         for i in range(len(lidar_boxes)):
-            objects.objects.append(parse_one_object(i))
+            o, row = parse_one_object(i)
+            row = [log_id] + row
+            df.loc[len(df.index)] = row
+            objects.objects.append(o)
 
-        return objects
+        return objects, df
 
     def convert(self):
         """Convert action."""
-        print('Start converting ...')
         convert_func = self.convert_one_fast if self.fast_eval else \
             self.convert_one
-        print(convert_func)
+
         # from torch.multiprocessing import set_sharing_strategy
         # # Force using "file_system" sharing strategy for stability
         # set_sharing_strategy("file_system")
@@ -436,6 +501,19 @@ class Prediction2WaymoFeather(object):
         Returns:
             :obj:`Objects`: Combined predictions in Objects proto.
         """
+        print('combine feather files...')
+        paths = glob.glob(f'{self.work_dir}/intermediate/*')
+        all_df = None
+        for f in paths:
+            df = feather.read_feather(f)
+            if all_df is None:
+                all_df = df
+            else:
+                all_df = pd.concat([all_df, df])
+            os.remove(f)
+        feather.write_feather(all_df, os.path.join(self.work_dir, f'{self.percentage}_{self.detection_type}.feather'))
+
+        # combine bin files
         combined = metrics_pb2.Objects()
         count = 0
         for pathname in pathnames:
