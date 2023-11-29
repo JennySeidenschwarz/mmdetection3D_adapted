@@ -178,7 +178,7 @@ test_dataloader = dict(
         stat_as_ignore_region=False))
 
 val_evaluator = dict(
-    type='WaymoMetric',
+    type='WaymoMetricFeather',
     ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_train.pkl',
     # ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_val.pkl',
     waymo_bin_file=f'{original_dataset_root}/gt.bin',

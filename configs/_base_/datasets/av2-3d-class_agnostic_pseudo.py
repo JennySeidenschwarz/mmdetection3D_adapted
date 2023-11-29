@@ -170,7 +170,7 @@ test_dataloader = dict(
         load_dir='/workspace/Argoverse2/val'))
 
 val_evaluator = dict(
-    type='AV2Metric',
+    type='AV2MetricFeather',
     ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_train.pkl',
     # ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_val.pkl',
     waymo_bin_file=f'{original_dataset_root}/gt.bin',

@@ -180,7 +180,7 @@ test_dataloader = dict(
         all_car=True))
 
 val_evaluator = dict(
-    type='WaymoMetric',
+    type='WaymoMetricFeather',
     ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_train.pkl',
     # ann_file=f'{data_root}/{rel_annotations_dir}/waymo_infos_val.pkl',
     waymo_bin_file=f'{original_dataset_root}/gt.bin',
