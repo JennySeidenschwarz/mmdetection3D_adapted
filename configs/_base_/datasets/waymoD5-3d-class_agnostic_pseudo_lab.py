@@ -58,32 +58,32 @@ db_sampler = dict(
 
 train_pipeline = [
     dict(
-        type='LoadPointsFromFile',
+        type='LoadPointsFromFileFeather',
         coord_type='LIDAR',
         load_dim=6,
         use_dim=5,
         backend_args=backend_args),
-    dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
+    dict(type='LoadAnnotations3DFeather', with_bbox_3d=True, with_label_3d=True),
     # dict(type='ObjectSample', db_sampler=db_sampler),
     dict(
-        type='RandomFlip3D',
+        type='RandomFlip3DFeather',
         sync_2d=False,
         flip_ratio_bev_horizontal=0.5,
         flip_ratio_bev_vertical=0.5),
     dict(
-        type='GlobalRotScaleTrans',
+        type='GlobalRotScaleTransFeather',
         rot_range=[-0.78539816, 0.78539816],
         scale_ratio_range=[0.95, 1.05]),
-    dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
-    dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
+    dict(type='PointsRangeFilterFeather', point_cloud_range=point_cloud_range),
+    dict(type='ObjectRangeFilterFeather', point_cloud_range=point_cloud_range),
     dict(type='PointShuffle'),
     dict(
-        type='Pack3DDetInputs',
+        type='Pack3DDetInputsFeather',
         keys=['points', 'gt_bboxes_3d', 'gt_labels_3d'])
 ]
 test_pipeline = [
     dict(
-        type='LoadPointsFromFile',
+        type='LoadPointsFromFileFeather',
         coord_type='LIDAR',
         load_dim=6,
         use_dim=5,
@@ -95,27 +95,18 @@ test_pipeline = [
         flip=False,
         transforms=[
             dict(
-                type='GlobalRotScaleTrans',
+                type='GlobalRotScaleTransFeather',
                 rot_range=[0, 0],
                 scale_ratio_range=[1., 1.],
                 translation_std=[0, 0, 0]),
-            dict(type='RandomFlip3D'),
+            dict(type='RandomFlip3DFeather'),
             dict(
-                type='PointsRangeFilter', point_cloud_range=point_cloud_range)
+                type='PointsRangeFilterFeather', point_cloud_range=point_cloud_range)
         ]),
-    dict(type='Pack3DDetInputs', keys=['points'])
+    dict(type='Pack3DDetInputsFeather', keys=['points'])
 ]
 # construct a pipeline for data and gt loading in show function
 # please keep its loading function consistent with test_pipeline (e.g. client)
-eval_pipeline = [
-    dict(
-        type='LoadPointsFromFile',
-        coord_type='LIDAR',
-        load_dim=6,
-        use_dim=5,
-        backend_args=backend_args),
-    dict(type='Pack3DDetInputs', keys=['points']),
-]
 eval_pipeline = test_pipeline
 train_dataloader = dict(
     batch_size=4,
