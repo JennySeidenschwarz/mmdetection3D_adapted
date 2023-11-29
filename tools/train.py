@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from mmdet3d.datasets.av2_dataset import AV2Dataset
+from mmdet3d.datasets.av2_feather_dataset import AV2FeatherDataset
+from mmdet3d.datasets.waymo_feather_dataset import WaymoFeatherDataset
 from  mmdet3d.evaluation.metrics.av2_metric import AV2Metric 
 import torch.distributed as dist
 import datetime
@@ -74,10 +75,12 @@ def parse_args():
     parser.add_argument('--local_rank', '--local-rank', type=int, default=0)
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--checkpoint', default=None, help='checkpoint file')
-    parser.add_argument('--test_detection_set', default='val_detector')
     parser.add_argument('--train_detection_set', default='train_detector')
-    parser.add_argument('--pseudo_label_path', default='')
-    parser.add_argument('--test_label_path')
+    parser.add_argument('--val_detection_set', default='val_detector')
+    parser.add_argument('--test_detection_set', default='val_evaluation')
+    parser.add_argument('--train_pseudo_label_path', default='')
+    parser.add_argument('--val_pseudo_label_path', default='')
+    parser.add_argument('--test_pseudo_label_path', default='')
     parser.add_argument('--all_car', default=False)
     parser.add_argument('--stat_as_ignore_region', default=False)
     parser.add_argument('--filter_stat_before', default=False)
@@ -135,9 +138,9 @@ def main():
     cfg.train_dataloader.dataset.dataset['filter_stat_before'] = args.filter_stat_before
     cfg.train_dataloader.batch_size = int(args.batch_size) 
     pseudo_add = ''
-    if args.pseudo_label_path != '':
-        pseudo_add = f'_{args.pseudo_label_path}'[:30]
-        cfg.train_dataloader.dataset.dataset['pseudo_labels'] = cfg.train_dataloader.dataset.dataset['data_root']+args.pseudo_label_path
+    if args.train_pseudo_label_path != '':
+        pseudo_add = f'_{args.train_pseudo_label_path}'[:30]
+        cfg.train_dataloader.dataset.dataset['pseudo_labels'] = cfg.train_dataloader.dataset.dataset['data_root']+args.train_pseudo_label_path
     print('Using Pseudo labels ', cfg.train_dataloader.dataset.dataset['pseudo_labels'])
     cfg.val_dataloader.dataset['percentage'] = float(args.percentage_val)
     cfg.val_dataloader.dataset['detection_type'] = args.test_detection_set
@@ -162,9 +165,12 @@ def main():
     elif 'av' in args.config:
         cfg.test_dataloader.dataset['load_dir'] = cfg.test_dataloader.dataset['load_dir'].split('/')[:-1] + ['train']
         cfg.test_dataloader.dataset['load_dir'] = '/'.join(cfg.test_dataloader.dataset['load_dir'])
-    
-    if args.test_label_path:
-        cfg.test_dataloader.dataset['pseudo_labels'] = args.test_label_path
+
+    if args.val_pseudo_label_path != '':
+        cfg.val_dataloader.dataset['pseudo_labels'] = args.val_pseudo_label_path
+
+    if args.test_pseudo_label_path != '':
+        cfg.test_dataloader.dataset['pseudo_labels'] = args.test_pseudo_label_path
 
     # add wandb
     wandb.login(key='3b716e6ab76d92ef92724aa37089b074ef19e29c') 
