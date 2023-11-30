@@ -151,12 +151,13 @@ class WaymoFeatherDataset(KittiDataset):
             'TYPE_CYCLIST': 'Cyclist',
             'SIGN': 'Sign',  # not in kitti
             'TYPE_SIGN': 'Sign'
-        }        
+        }
         # we do not provide backend_args to custom_3d init
         # because we want disk loading for info
         # while ceph loading for Prediction2Waymo
         super().__init__(
             data_root=data_root,
+            ann_file='',
             pipeline=pipeline,
             modality=modality,
             box_type_3d=box_type_3d,
@@ -444,7 +445,7 @@ class WaymoFeatherDataset(KittiDataset):
             self.seqs = f.read()
             self.seqs = self.seqs.split('\n')
             self.seqs = [int(s) for s in self.seqs]
-        if self.pseudo_labels2 is not '':
+        if self.pseudo_labels2 is not None:
             with open(f'new_seq_splits_Waymo_Converted_fixed_val/{self.percentage}_train_gnn.txt', 'r') as f:
                 seqs2 = f.read()
                 seqs2 = seqs2.split('\n')
@@ -476,15 +477,20 @@ class WaymoFeatherDataset(KittiDataset):
         # `self.root=None` or relative path if `self.root=/path/to/data/`.
         
         # FROM mmengine/dataset/basedataset
-        import pickle
-        with open(self.ann_file, 'rb') as f:
-            annotations = pickle.load(f)
-        metainfo = annotations['metainfo']
-        raw_data_list_pkl = annotations['data_list']
-
+        # import pickle
+        # with open(self.ann_file, 'rb') as f:
+        #     annotations = pickle.load(f)
+        # metainfo = annotations['metainfo']
+        # raw_data_list_pkl = annotations['data_list']
+        
         # Meta information load from annotation file will not influence the
         # existed meta information load from `BaseDataset.METAINFO` and
         # `metainfo` arguments defined in constructor.
+        metainfo = {
+                'categories': {'Car': 0, 'Pedestrian': 1, 'Cyclist': 2, 'Sign': 3},
+                'dataset': 'waymo',
+                'version': '1.4',
+                'info_version': '1.1'}
         for k, v in metainfo.items():
             self._metainfo.setdefault(k, v)
         
@@ -503,7 +509,7 @@ class WaymoFeatherDataset(KittiDataset):
             def convert2int(x): return self._class_dict_waymo[x]
             raw_data_list['category'] = raw_data_list['category'].apply(convert2int)
         print(f'All labels {raw_data_list.shape[0]}')
-        if self.pseudo_labels2 is not '':
+        if self.pseudo_labels2 is not None:
             raw_data_list['filter_moving'] = True
             print(f'Loading pseudo_labels2 {self.pseudo_labels2}')
             if os.path.isfile(self.pseudo_labels2):
