@@ -174,6 +174,7 @@ class AV2FeatherDataset(KittiDataset):
         # while ceph loading for Prediction2Waymo
         super().__init__(
             data_root=data_root,
+            ann_file='',
             pipeline=pipeline,
             modality=modality,
             box_type_3d=box_type_3d,

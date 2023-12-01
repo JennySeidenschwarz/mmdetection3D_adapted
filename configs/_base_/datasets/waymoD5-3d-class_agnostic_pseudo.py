@@ -1,7 +1,7 @@
 # dataset settings
 # D5 in the config name means the whole dataset is divided into 5 folds
 # We only use one fold for efficient experiments
-dataset_type = 'WaymoFeatherDataset'
+dataset_type = 'WaymoFeatherDataset' #'WaymoFeatherDataset'
 # data_root = 's3://openmmlab/datasets/detection3d/waymo/kitti_format/'
 data_root = '/workspace/waymo_kitti_format/kitti_format/'
 data_root_annotatons = f'/workspace/waymo_kitti_format_annotaions/kitti_format/'
@@ -118,6 +118,7 @@ train_dataloader = dict(
             pseudo_labels=f'{data_root_annotatons_dets}{detection_name}',
             data_prefix=dict(
                 pts=f'{data_root}training/velodyne', sweeps='training/velodyne'),
+            ann_file='/workspace/mmdetection3d/waymo_debug_infos_train_dict.pkl', #'/workspace/waymo_kitti_format_annotaions/kitti_format/waymo_infos_train.pkl',
             pipeline=train_pipeline,
             modality=input_modality,
             test_mode=False,
@@ -128,8 +129,7 @@ train_dataloader = dict(
             # load one frame every five frames
             load_interval=5,
             backend_args=backend_args,
-            detection_type='train_detector',
-            only_matched=False)))
+            detection_type='train_detector')))
 val_dataloader = dict(
     batch_size=1,
     num_workers=1,
@@ -141,6 +141,7 @@ val_dataloader = dict(
         data_root=data_root,
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
         pseudo_labels=f'/workspace/ExchangeWorkspace/detections_train_detector/Waymo_Converted_filtered/train_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather',
+        ann_file='/workspace/waymo_kitti_format_annotaions/kitti_format/waymo_infos_train.pkl',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -169,13 +170,13 @@ test_dataloader = dict(
         metainfo=metainfo,
         box_type_3d='LiDAR',
         backend_args=backend_args,
-        detection_type='val_detector',
+        detection_type='val_evaluation',
         all_car=True,
         filter_stat_before=True,
         stat_as_ignore_region=False))
 
 val_evaluator = dict(
-    type='WaymoMetricFeather',
+    type='AV2MetricFeather',#'WaymoMetricFeather',
     data_root=f'{original_dataset_root}',
     backend_args=backend_args,
     convert_kitti_format=False)

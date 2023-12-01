@@ -122,12 +122,12 @@ class AV2MetricFeather(KittiMetric):
     num_cams = 5
 
     def __init__(self,
-                 ann_file: str,
-                 percentage: float,
-                 detection_type: str,
-                 all_car: bool,
-                 waymo_bin_file: str,
-                 data_root: str,
+                 ann_file: str = '',
+                 percentage: float = 1.0,
+                 detection_type: str = 'val_evaluation',
+                 all_car: bool = True,
+                 waymo_bin_file: str = '',
+                 data_root: str = '',
                  split: str = 'training',
                  metric: Union[str, List[str]] = 'mAP',
                  pcd_limit_range: List[float] = [-85, -85, -5, 85, 85, 5],
@@ -170,7 +170,7 @@ class AV2MetricFeather(KittiMetric):
         else:
             self.idx2metainfo = None
 
-        super(AV2Metric, self).__init__(
+        super(AV2MetricFeather, self).__init__(
             ann_file=ann_file,
             percentage=percentage,
             detection_type=detection_type,
