@@ -1,5 +1,5 @@
 # Training downstream detector
-Directory forked from [mmdetection3d](https://github.com/open-mmlab/mmdetection3d/). It is adapted to load feather files as input for training and evaluation on pointpillars model. The performance is automatically evaluated using the evaluation code from SeMoLi. For training we use the standard hyperparameters for pointpillars training on Waymo Open Dataset. We support training on Waymo Open Dataset and Argoverse2 dataset.
+Directory forked from [mmdetection3d](https://github.com/open-mmlab/mmdetection3d/). It is adapted to load feather files as input for training and evaluation on pointpillars model. The performance is automatically evaluated using the evaluation code from SeMoLi. For training we use the standard hyperparameters for pointpillars training on Waymo Open Dataset. We support training on Waymo Open Dataset and Argoverse2 dataset. During training and evaluation we only use points and labels within a ```100mx40m``` rectangle around the ego-vehicle.
 
 ## Installation
 If you installed the conda environment from SeMoLi, all libraries are already installed and you can run the code if you activate ```conda activate SeMoLi```. Otherwise, perpare a conda evironment running the following:
@@ -12,17 +12,17 @@ bash setup.sh
 
 ## Running the code
 In this repository we follow the data split convention of SeMoLi given by:
-![data split figure according to SeMoLi](figs/data_splits.pdf)
+![data split figure according to SeMoLi](figs/data_splits.jpg)
 
-For training and evaluation set the train and validation label paths by running:
+For training and evaluation, you can use either pseudo-labels stored in a feather file or ground truth labels loaded from a feather file. et the train and validation label paths to the corresponding feather file by running:
 ```
 export TRAIN_LABELS=<train_label_path>
 export VAL_LABELS=<val_label_path>
 ```
 
-For validation, set the path to the feather file containing ground truth data. If you want to use the ```val_detector``` dataset from SeMoLi for evaluation, set the path to the feather file containing ground truth training data. If you want to use the real validation set, i.e., the ```val_evaluation``` split set the path to the file containing validation set ground truth data. 
+For validation, set the path to the feather file containing ground truth data. If you want to use the ```val_detector``` dataset from SeMoLi for evaluation, set the path to the feather file containing ground truth *training data*. If you want to use the *real validation set*, i.e., the ```val_evaluation``` split set the path to the file containing validation set ground truth data. 
 
-For example, if you are using this repository within the SeMoLi repository, the train and real validation set paths are given by:
+For example, if you are using this repository within the SeMoLi repository, the ground truth train and real validation set paths can be set by:
 
 ```
 export TRAIN_LABELS=../SeMoLi/data_utils/Waymo_Converted_filtered/train_1_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather
