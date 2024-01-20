@@ -4,13 +4,16 @@ Directory forked from [mmdetection3d](https://github.com/open-mmlab/mmdetection3
 ## Installation
 If you installed the conda environment from SeMoLi, all libraries are already installed and you can run the code if you activate ```conda activate SeMoLi```. Otherwise, perpare a conda evironment running the following:
 
-````
+```
 conda create -n mmdetection3d python=3.9
 conda activate mmdetection3d
 bash setup.sh
 ```
 
 ## Running the code
+In this repository we follow the data split convention of SeMoLi given by:
+![data split figure according to SeMoLi](figs/data_splits.pdf)
+
 For training and evaluation set the train and validation label paths by running:
 ```
 export TRAIN_LABELS=<train_label_path>
