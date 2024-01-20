@@ -79,4 +79,3 @@ For training in a class specific setting with ground truth data, change the conf
 ./tools/dist_train.sh configs/pointpillars/pointpillars_hv_secfpn_sbn-all_8xb4-2x_waymo-3d-class_specific.py <num_gpus> <percentage_train> <percentage_val> $TRAIN_LABELS $VAL_LABELS --val_detection_set=val_evaluation --auto-scale-lr
 ```
 
-

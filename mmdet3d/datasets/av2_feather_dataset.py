@@ -402,8 +402,6 @@ class AV2FeatherDataset(KittiDataset):
         count = 0
         idx_to_my_idx = pd.DataFrame(columns=['idx', 'log_id', 'timestamp'])
         for i, log_id in enumerate(raw_data_list['log_id'].unique()):
-            if log_id != 'segment-260994483494315994_2797_545_2817_545':
-                continue
             log_data = raw_data_list[raw_data_list['log_id'] == log_id]
             num_time = len(log_data['timestamp_ns'].unique())
             print(f'{i} / {num_ids}, in total {num_time} timestamps')
@@ -448,10 +446,7 @@ class AV2FeatherDataset(KittiDataset):
                     raise TypeError('data_sample should be a dict or list of dict, '
                                     f'but got {type(data_sample)}')
                 count += 1
-                if count == 4:
-                    break
-            break
-
+                
         feather.write_feather(idx_to_my_idx, f'{self.work_dir}/idx_to_my_idx.feather')
         return data_list
     
