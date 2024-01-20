@@ -20,24 +20,29 @@ from mmengine.registry import RUNNERS
 from mmengine.runner import Runner
 
 from mmdet3d.utils import replace_ceph_backend
-'''
-import sys
-import traceback
-class TracePrints(object):
-  def __init__(self):
-    self.stdout = sys.stdout
-  def write(self, s):
-    self.stdout.write("Writing %r\n" % s)
-    traceback.print_stack(file=self.stdout)
 
-sys.stdout = TracePrints()
-'''
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a 3D detector')
+    # my added args without default
     parser.add_argument('config', help='train config file path')
     parser.add_argument('percentage_train', help='1-percentage_train will be the percentage of dataset for training')
     parser.add_argument('percentage_val', help='1-percentage_val will be the percentage of dataset for validation')
+    parser.add_argument('train_label_path')
+    parser.add_argument('val_label_path')
+
+    # my added args with default
+    parser.add_argument('--train_label_path_2', default='')
+    parser.add_argument('--eval', action='store_true')
+    parser.add_argument('--train_detection_set', default='train_detector')
+    parser.add_argument('--val_detection_set', default='val_detector')
+    parser.add_argument('--test_detection_set', default='')
+    parser.add_argument('--test_label_path', default='')
+    parser.add_argument('--class_agnostic', default=False)
+    parser.add_argument('--filter_stat_before', action='store_false')
+    parser.add_argument('--split_path', default='')
+
+    # original args
     parser.add_argument('--work-dir', help='the dir to save logs and models')
     parser.add_argument(
         '--amp',
@@ -77,17 +82,6 @@ def parse_args():
     # will pass the `--local-rank` parameter to `tools/train.py` instead
     # of `--local_rank`.
     parser.add_argument('--local_rank', '--local-rank', type=int, default=0)
-    parser.add_argument('--test', action='store_true')
-    parser.add_argument('--checkpoint', default=None, help='checkpoint file')
-    parser.add_argument('--train_detection_set', default='train_detector')
-    parser.add_argument('--val_detection_set', default='val_detector')
-    parser.add_argument('--test_detection_set', default='val_evaluation')
-    parser.add_argument('--train_pseudo_label_path', default='')
-    parser.add_argument('--val_pseudo_label_path', default='')
-    parser.add_argument('--test_pseudo_label_path', default='')
-    parser.add_argument('--all_car', default=False)
-    parser.add_argument('--stat_as_ignore_region', default=False)
-    parser.add_argument('--filter_stat_before', default=False)
     parser.add_argument('--min_num_pts_filtered', default=0)
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument(
@@ -111,13 +105,8 @@ def parse_args():
         'to the work_dir/timestamp/show_dir')
     parser.add_argument(
         '--tta', action='store_true', help='Test time augmentation')
-    parser.add_argument(
-        '--ann_file2', default='', help='If combining two annotation files')
-    parser.add_argument(
-            '--args.data_root2', default='')
-    parser.add_argument(
-            '--args.info_path2', default='')
     args = parser.parse_args()
+
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
     return args
@@ -131,50 +120,40 @@ def main():
     cfg = Config.fromfile(args.config)
     cfg.model.test_cfg.pts['score_thr'] = 0.1
 
+    # update train dataloader from parser
     cfg.train_dataloader.dataset['dataset']['percentage'] = float(args.percentage_train)
-    if args.ann_file2 is not '':
-        cfg.db_sampler['data_root2'] = args.data_root2
-        cfg.db_sampler['info_path2'] = args.info_path2
-        cfg.train_dataloader.dataset.dataset['dataset']['ann_file2'] = args.ann_file2
     cfg.train_dataloader.dataset.dataset['detection_type'] = args.train_detection_set
-    cfg.train_dataloader.dataset.dataset['all_car'] = args.all_car
-    cfg.train_dataloader.dataset.dataset['stat_as_ignore_region'] = args.stat_as_ignore_region
+    cfg.train_dataloader.dataset.dataset['class_agnostic'] = args.class_agnostic
     cfg.train_dataloader.dataset.dataset['filter_stat_before'] = args.filter_stat_before
+    cfg.train_dataloader.dataset.dataset['in_channels'] = cfg.model.pts_voxel_encoder.in_channels
     cfg.train_dataloader.batch_size = int(args.batch_size) 
-    pseudo_add = ''
-    if args.train_pseudo_label_path != '':
-        pseudo_add = f'_{args.train_pseudo_label_path}'[:30]
-        cfg.train_dataloader.dataset.dataset['pseudo_labels'] = cfg.train_dataloader.dataset.dataset['data_root']+args.train_pseudo_label_path
-    print('Using Pseudo labels ', cfg.train_dataloader.dataset.dataset['pseudo_labels'])
-    cfg.val_dataloader.dataset['percentage'] = float(args.percentage_val)
-    cfg.val_dataloader.dataset['detection_type'] = args.test_detection_set
-    cfg.test_dataloader.dataset['percentage'] = float(args.percentage_val)
-    cfg.test_dataloader.dataset['detection_type'] = args.test_detection_set
+    pseudo_add = f'_{os.path.basename(args.train_label_path)}'[:30]
+    cfg.train_dataloader.dataset.dataset['label_path'] = args.train_label_path
+    cfg.train_dataloader.dataset.dataset['label_path2'] = args.train_label_path_2
+    print('Using Pseudo labels ', cfg.train_dataloader.dataset.dataset['label_path'])
 
+    # update val dataloader and evaluator from parser
+    cfg.val_dataloader.dataset['percentage'] = float(args.percentage_val)
+    cfg.val_dataloader.dataset['detection_type'] = args.val_detection_set
+    cfg.val_dataloader.dataset['in_channels'] = cfg.model.pts_voxel_encoder.in_channels
+    cfg.val_dataloader.dataset['filter_stat_before'] = args.filter_stat_before
     cfg.val_evaluator['percentage'] = float(args.percentage_val)
     cfg.val_evaluator['detection_type'] = cfg.val_dataloader.dataset.detection_type
-    cfg.val_evaluator['all_car'] = cfg.val_dataloader.dataset.all_car
+    cfg.val_evaluator['class_agnostic'] = cfg.val_dataloader.dataset.class_agnostic
+    cfg.val_dataloader.dataset['label_path'] = args.val_label_path
+
+    # update test dataloader and evaluator from parser
+    cfg.test_dataloader.dataset['percentage'] = float(args.percentage_val)
+    cfg.test_dataloader.dataset['detection_type'] = args.test_detection_set if args.test_detection_set != '' else args.val_detection_set
+    cfg.test_dataloader.dataset['in_channels'] = cfg.model.pts_voxel_encoder.in_channels
+    cfg.test_dataloader.dataset['filter_stat_before'] = args.filter_stat_before
     cfg.test_evaluator['percentage'] = float(args.percentage_val)
     cfg.test_evaluator['detection_type'] = cfg.test_dataloader.dataset.detection_type
-    cfg.test_evaluator['all_car'] = cfg.test_dataloader.dataset.all_car
-    if args.test_detection_set == 'val_evaluation':
-        data_root = '/workspace/waymo_kitti_format/kitti_format/'
-        rel_annotations_dir = '../../waymo_kitti_format_annotaions/kitti_format'
-        cfg.test_dataloader.dataset['ann_file'] = f'{rel_annotations_dir}/waymo_infos_val.pkl'
-        cfg.test_evaluator['ann_file'] = f'{data_root}/{rel_annotations_dir}/waymo_infos_val.pkl'
-        if 'av' in args.config:
-            cfg.test_dataloader.dataset['load_dir'] = cfg.test_dataloader.dataset['load_dir'].split('/')[:-1] + ['val']
-            cfg.test_dataloader.dataset['load_dir'] = '/'.join(cfg.test_dataloader.dataset['load_dir'])
-            cfg.test_dataloader.dataset['pseudo_labels'] = '/workspace/ExchangeWorkspace/detections_train_detector/ArgoFiltered_GT/val_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather'
-    elif 'av' in args.config:
-        cfg.test_dataloader.dataset['load_dir'] = cfg.test_dataloader.dataset['load_dir'].split('/')[:-1] + ['train']
-        cfg.test_dataloader.dataset['load_dir'] = '/'.join(cfg.test_dataloader.dataset['load_dir'])
-
-    if args.val_pseudo_label_path != '':
-        cfg.val_dataloader.dataset['pseudo_labels'] = args.val_pseudo_label_path
-
-    if args.test_pseudo_label_path != '':
-        cfg.test_dataloader.dataset['pseudo_labels'] = args.test_pseudo_label_path
+    cfg.test_evaluator['class_agnostic'] = cfg.test_dataloader.dataset.class_agnostic
+    if args.test_label_path != '':
+        cfg.test_dataloader.dataset['label_path'] = args.test_label_path
+    else:
+        cfg.test_dataloader.dataset['label_path'] = args.val_label_path  
 
     # add wandb
     wandb.login(key='3b716e6ab76d92ef92724aa37089b074ef19e29c') 
@@ -206,13 +185,16 @@ def main():
     elif cfg.get('work_dir', None) is None:
         # use config filename as default work_dir if cfg.work_dir is None
         cfg.work_dir = osp.join('./work_dirs',
-                                osp.splitext(osp.basename(args.config))[0] + f'_{args.percentage_train}_{args.percentage_val}_{args.filter_stat_before}_{args.all_car}_{args.train_detection_set}{pseudo_add}')
+                                osp.splitext(osp.basename(args.config))[0] + \
+                                    f'_{args.percentage_train}_{args.percentage_val}_{args.filter_stat_before}_{args.class_agnostic}_{args.train_detection_set}{pseudo_add}')
+    
+    # set workdir for val and test datasets
     cfg.val_dataloader.dataset['work_dir'] = cfg.work_dir
     cfg.test_dataloader.dataset['work_dir'] = cfg.work_dir
     cfg.val_evaluator['work_dir'] = cfg.work_dir
     cfg.test_evaluator['work_dir'] = cfg.work_dir 
     
-    if args.test:
+    if args.eval:
         test(cfg, args)
     else:
         train(cfg, args)
@@ -227,18 +209,7 @@ def test(cfg, args):
     cfg.val_cfg = None
     cfg.val_evaluator = None
 
-    cfg.load_from = args.checkpoint
-
-    if args.show or args.show_dir:
-        cfg = trigger_visualization_hook(cfg, args)
-
-    if args.tta:
-        # Currently, we only support tta for 3D segmentation
-        # TODO: Support tta for 3D detection
-        assert 'tta_model' in cfg, 'Cannot find ``tta_model`` in config.'
-        assert 'tta_pipeline' in cfg, 'Cannot find ``tta_pipeline`` in config.'
-        cfg.test_dataloader.dataset.pipeline = cfg.tta_pipeline
-        cfg.model = ConfigDict(**cfg.tta_model, module=cfg.model)
+    cfg.load_from = args.resume
 
     # build the runner from config
     if 'runner_type' not in cfg:
@@ -254,9 +225,6 @@ def test(cfg, args):
 
 
 def train(cfg, args):
-    #cfg.val_dataloader = None
-    #cfg.val_cfg = None
-    #cfg.val_evaluator = None
     # enable automatic-mixed-precision training
     if args.amp is True:
         optim_wrapper = cfg.optim_wrapper.type
@@ -300,7 +268,7 @@ def train(cfg, args):
         # build customized runner from the registry
         # if 'runner_type' is set in the cfg
         runner = RUNNERS.build(cfg)
-    print('Starting training...')
+    
     # start training
     runner.train()
 

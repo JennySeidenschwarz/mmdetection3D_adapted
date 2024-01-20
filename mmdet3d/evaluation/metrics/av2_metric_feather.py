@@ -22,6 +22,11 @@ import os
 import pandas as pd
 import glob
 
+import sys
+sys.path.append('../')
+from SeMoLi.evaluation import eval_detection
+from SeMoLi.data_utils.splits import get_seq_list_fixed_val
+
 
 classes = ['Car', 'Pedestrian', 'Cyclist']
 
@@ -125,7 +130,7 @@ class AV2MetricFeather(KittiMetric):
                  ann_file: str = '',
                  percentage: float = 1.0,
                  detection_type: str = 'val_evaluation',
-                 all_car: bool = True,
+                 class_agnostic: bool = True,
                  waymo_bin_file: str = '',
                  data_root: str = '',
                  split: str = 'training',
@@ -143,25 +148,27 @@ class AV2MetricFeather(KittiMetric):
                  backend_args: Optional[dict] = None,
                  idx2metainfo: Optional[str] = None, 
                  work_dir: str = 'work_dir',
-                 num_workers: int = 64) -> None:
+                 num_workers: int = 64,
+                 filtered_file_path='',
+                 flow_path='',
+                 filter_static=True,
+                 root_dir='') -> None:
         # self.data_infos = load(self.ann_file, percentage=self.percentage)['data_list']
-        self.waymo_bin_file = waymo_bin_file
+        self.filtered_file_path = filtered_file_path
+        self.root_dir = root_dir
+        self.filter_static = filter_static
+        self.flow_path = flow_path
         self.data_root = data_root
         self.num_workers = num_workers
+        self.class_agnostic = class_agnostic
         if 'evaluation' in detection_type:
-            self._split = 'validation'
+            self.split = 'val'
         elif 'test' in detection_type:
-            self._split = 'testing'
+            self.split = 'test'
         else:
-            self._split = 'training'
-            all_car_add = '_car' if all_car else ''
-            self.waymo_bin_file = f'waymo_gt_and_meta/gt/gt_{percentage}_{detection_type}{all_car_add}.bin'
-            self.waymo_bin_file = '/workspace/ExchangeWorkspace/waymo_gt_and_meta/gt/gt_0.1_val_detector_car_filter_moving_range.bin'
+            self.split = 'train'
         self.work_dir = work_dir
 
-        print('GT TO EVALUATEEEEEEEEEEEE', self.waymo_bin_file, self.work_dir, 'hiiii')
-
-        self.split = split
         self.load_type = load_type
         self.use_pred_sample_idx = use_pred_sample_idx
         self.convert_kitti_format = convert_kitti_format
@@ -174,7 +181,7 @@ class AV2MetricFeather(KittiMetric):
             ann_file=ann_file,
             percentage=percentage,
             detection_type=detection_type,
-            all_car=all_car,
+            class_agnostic=class_agnostic,
             metric=metric,
             pcd_limit_range=pcd_limit_range,
             prefix=prefix,
@@ -189,7 +196,7 @@ class AV2MetricFeather(KittiMetric):
             'None when format_only is True, otherwise the result files will '
             'be saved to a temp directory which will be cleaned up at the end.'
 
-        self.default_prefix = 'Waymo metric'
+        self.default_prefix = 'AV2 metric'
         # self.format_results_debug()
 
     def compute_metrics(self, results: List[dict]) -> Dict[str, float]:
@@ -238,10 +245,12 @@ class AV2MetricFeather(KittiMetric):
             saving json files when jsonfile_prefix is not specified.
         """
         torch.save(results, f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
-        # chunk_size = math.ceil(len(results)/self.num_workers)
-        # self.final_results = [results[i*chunk_size:(i+1)*chunk_size] for i in range(self.num_workers)]
-        # print(f'Num workers {self.num_workers} and parallel processes {len(self.final_results)}')
-        # mmengine.track_parallel_progress(self.convert_to_argo, range(len(self.final_results)), self.num_workers)
+
+        '''chunk_size = math.ceil(len(results)/self.num_workers)
+        self.final_results = [results[i*chunk_size:(i+1)*chunk_size] for i in range(self.num_workers)]
+        print(f'Num workers {self.num_workers} and parallel processes {len(self.final_results)}')
+        mmengine.track_parallel_progress(self.convert_to_argo, range(len(self.final_results)), self.num_workers)'''
+
         self.final_results = [results]
         for idx in range(len(self.final_results)):
             self.convert_to_argo(idx)
@@ -261,6 +270,9 @@ class AV2MetricFeather(KittiMetric):
         torch.save(self.final_results, f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
         print('Stored to ...', f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
 
+        # evaluate using our code
+        self._evaluate()
+
     def convert_to_argo(self, idx):
         final_results = self.final_results[idx]
         argo_idx = feather.read_feather(f'{self.work_dir}/idx_to_my_idx.feather')
@@ -268,7 +280,6 @@ class AV2MetricFeather(KittiMetric):
         df = pd.DataFrame(columns=column_names)
         count = 0
         for j, res in enumerate(final_results):
-            print(idx, j)
             # Actually, `sample_idx` here is the filename without suffix.
             # It's for identitying the sample in formating.
             # res['sample_idx'] = self.data_infos[i]['sample_idx']
@@ -289,7 +300,8 @@ class AV2MetricFeather(KittiMetric):
                     count += 1
                     df = pd.DataFrame(columns=column_names)
 
-            feather.write_feather(df, os.path.join(self.work_dir, 'intermediate', f'{idx}_{count}.feather'))
+        print('Writing to ', os.path.join(self.work_dir, 'intermediate', f'{idx}_{count}.feather'))
+        feather.write_feather(df, os.path.join(self.work_dir, 'intermediate', f'{idx}_{count}.feather'))
 
     def parse_one_object(self, index, lidar_boxes, scores, labels, timestamp, log_id):
         class_name = classes[labels[index].item()]
@@ -325,3 +337,24 @@ class AV2MetricFeather(KittiMetric):
             scores[index].item()]
         
         return row
+    
+    def _evaluate(self,):
+        seq_list = get_seq_list_fixed_val(
+            self.data_root,
+            root_dir=self.root_dir,
+            detection_set=self.detection_type,
+            percentage=self.percentage)
+
+        _, _, _ = eval_detection.eval_detection(
+            gt_folder=self.data_root,
+            trackers_folder=os.path.join(self.work_dir, f'{self.percentage}_{self.detection_type}.feather'),
+            split=self.split,
+            seq_to_eval=seq_list,
+            remove_far=True,
+            visualize=False,
+            filter_class="CONVERT_ALL_TO_CARS" if self.class_agnostic else "NO_FILTER",
+            filter_moving=self.filter_static,
+            min_num_interior_pts=0,
+            root_dir=self.root_dir,
+            filtered_file_path=self.filtered_file_path,
+            flow_path=self.flow_path)

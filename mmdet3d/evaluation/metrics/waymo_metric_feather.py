@@ -80,7 +80,7 @@ class WaymoMetricFeather(KittiMetric):
                  ann_file: str,
                  percentage: float,
                  detection_type: str,
-                 all_car: bool,
+                 class_agnostic: bool,
                  waymo_bin_file: str,
                  data_root: str,
                  split: str = 'training',
@@ -107,8 +107,8 @@ class WaymoMetricFeather(KittiMetric):
             self._split = 'testing'
         else:
             self._split = 'training'
-            all_car_add = '_car' if all_car else ''
-            self.waymo_bin_file = f'waymo_gt_and_meta/gt/gt_{percentage}_{detection_type}{all_car_add}.bin'
+            class_agnostic_add = '_car' if class_agnostic else ''
+            self.waymo_bin_file = f'waymo_gt_and_meta/gt/gt_{percentage}_{detection_type}{class_agnostic_add}.bin'
             self.waymo_bin_file = '/workspace/ExchangeWorkspace/waymo_gt_and_meta/gt/gt_0.1_val_detector_car_filter_moving_range.bin'
         self.work_dir = work_dir
 
@@ -127,7 +127,7 @@ class WaymoMetricFeather(KittiMetric):
             ann_file=ann_file,
             percentage=percentage,
             detection_type=detection_type,
-            all_car=all_car,
+            class_agnostic=class_agnostic,
             metric=metric,
             pcd_limit_range=pcd_limit_range,
             prefix=prefix,
@@ -160,7 +160,7 @@ class WaymoMetricFeather(KittiMetric):
 
         # load annotations
         print(self.percentage, self.ann_file)
-        self.data_infos = load(self.ann_file, detection_type=self.detection_type, percentage=self.percentage, all_car=self.all_car)['data_list']
+        self.data_infos = load(self.ann_file, detection_type=self.detection_type, percentage=self.percentage, class_agnostic=self.class_agnostic)['data_list']
         print(len(self.data_infos), len(results))
         # different from kitti, waymo do not need to convert the ann file
         # handle the mv_image_based load_mode

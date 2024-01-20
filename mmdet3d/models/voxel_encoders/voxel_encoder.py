@@ -374,6 +374,7 @@ class HardVFE(nn.Module):
                     max_out=max_out,
                     cat_max=cat_max))
             self.vfe_layers = nn.ModuleList(vfe_layers)
+
         self.num_vfe = len(vfe_layers)
 
         self.fusion_layer = None
@@ -404,6 +405,7 @@ class HardVFE(nn.Module):
                 feature of each points inside voxels.
         """
         features_ls = [features]
+
         # Find distance of x, y, and z from cluster center
         if self._with_cluster_center:
             points_mean = (

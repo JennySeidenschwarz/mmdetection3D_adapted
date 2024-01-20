@@ -23,9 +23,8 @@ from .transforms import (AffineResize, BackgroundPointsFilter, GlobalAlignment,
                          RandomFlip3D, RandomJitterPoints, RandomResize3D,
                          RandomShiftScale, Resize3D, VoxelBasedPointSampler)
 from .utils import get_loading_pipeline
-from .waymo_dataset import WaymoDataset
-from .waymo_dataset_feather import WaymoDatasetFeather
-from .av2_dataset_feather import AV2DatasetFeather
+from .waymo_feather_dataset import WaymoFeatherDataset
+from .av2_feather_dataset import AV2FeatherDataset
 
 __all__ = [
     'KittiDataset', 'CBGSDataset', 'NuScenesDataset', 'LyftDataset',
@@ -36,7 +35,7 @@ __all__ = [
     'PointSample', 'LoadAnnotations3D', 'GlobalAlignment', 'SUNRGBDDataset',
     'ScanNetDataset', 'ScanNetSegDataset', 'ScanNetInstanceSegDataset',
     'SemanticKittiDataset', 'Det3DDataset', 'Seg3DDataset',
-    'LoadPointsFromMultiSweeps', 'WaymoDataset', 'BackgroundPointsFilter',
+    'LoadPointsFromMultiSweeps', 'BackgroundPointsFilter',
     'VoxelBasedPointSampler', 'get_loading_pipeline', 'RandomDropPointsColor',
     'RandomJitterPoints', 'ObjectNameFilter', 'AffineResize',
     'RandomShiftScale', 'LoadPointsFromDict', 'Resize3D', 'RandomResize3D',

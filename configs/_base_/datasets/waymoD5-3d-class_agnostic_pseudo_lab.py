@@ -119,8 +119,8 @@ train_dataloader = dict(
         dataset=dict(
             type=dataset_type,
             data_root=data_root_annotatons_dets,
-            pseudo_labels=f'{data_root_annotatons_dets}{detection_name}',
-            pseudo_labels2='/workspace/ExchangeWorkspace/Waymo_Converted_filtered/train_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0_withwaymovel.feather',
+            label_path=f'{data_root_annotatons_dets}{detection_name}',
+            label_path2='../SeMoLi/data_utils/Waymo_Converted_filtered/train_1_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather',
             data_prefix=dict(
                 pts=f'{data_root}training/velodyne', sweeps='training/velodyne'),
             pipeline=train_pipeline,
@@ -145,7 +145,7 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
-        pseudo_labels=f'/workspace/ExchangeWorkspace/detections_train_detector/Waymo_Converted_filtered/train_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather',
+        label_path=f'/workspace/ExchangeWorkspace/detections_train_detector/Waymo_Converted_filtered/train_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -153,7 +153,7 @@ val_dataloader = dict(
         box_type_3d='LiDAR',
         backend_args=backend_args,
         detection_type='val_detector',
-        all_car=True))
+        class_agnostic=True))
 
 test_dataloader = dict(
     batch_size=1,
@@ -165,7 +165,7 @@ test_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
-        pseudo_labels=f'/workspace/ExchangeWorkspace/detections_train_detector/Waymo_Converted_filtered/val_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather',
+        label_path=f'/workspace/ExchangeWorkspace/detections_train_detector/Waymo_Converted_filtered/val_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -173,7 +173,7 @@ test_dataloader = dict(
         box_type_3d='LiDAR',
         backend_args=backend_args,
         detection_type='val_detector',
-        all_car=True))
+        class_agnostic=True))
 
 val_evaluator = dict(
     type='WaymoMetricFeather',

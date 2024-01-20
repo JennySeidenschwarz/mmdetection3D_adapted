@@ -53,7 +53,7 @@ class KittiMetric(BaseMetric):
                  ann_file: str,
                  percentage: float,
                  detection_type: str,
-                 all_car: bool,
+                 class_agnostic: bool,
                  metric: Union[str, List[str]] = 'bbox',
                  pcd_limit_range: List[float] = [0, -40, -3, 70.4, 40, 0.0],
                  prefix: Optional[str] = None,
@@ -70,7 +70,7 @@ class KittiMetric(BaseMetric):
         self.ann_file = ann_file
         self.percentage = percentage
         self.detection_type = detection_type
-        self.all_car = all_car
+        self.class_agnostic = class_agnostic
         self.pklfile_prefix = pklfile_prefix
         self.format_only = format_only
         if self.format_only:
@@ -191,7 +191,7 @@ class KittiMetric(BaseMetric):
 
         # load annotations
         # pkl_infos = load(self.ann_file, backend_args=self.backend_args, percentage=self.percentage)
-        pkl_infos = load(self.ann_file, detection_type=self.detection_type, percentage=self.percentage, all_car=self.all_car)
+        pkl_infos = load(self.ann_file, detection_type=self.detection_type, percentage=self.percentage, class_agnostic=self.class_agnostic)
         self.data_infos = self.convert_annos_to_kitti_annos(pkl_infos)
         result_dict, tmp_dir = self.format_results(
             results,

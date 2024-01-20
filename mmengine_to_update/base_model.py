@@ -111,22 +111,8 @@ class BaseModel(BaseModule):
         # Enable automatic mixed precision training context.
         import copy
         with optim_wrapper.optim_context(self):
-            data_orig = copy.deepcopy(data)
             data = self.data_preprocessor(data, True)
             losses = self._run_forward(data, mode='loss')  # type: ignore
-        import torch
-        losses['loss_cls'][0] = torch.tensor(float('inf'))
-        inf_test = False
-        for k, v in losses.items():
-            for l in v:
-                if torch.isinf(l).any():
-                    inf_test = True
-        
-        if inf_test:
-            print(data_orig)
-            torch.save(data_orig, 'debug_data_orig.pt')
-            torch.save(data, 'debug_data.pt')
-            quit()
         
         parsed_losses, log_vars = self.parse_losses(losses)  # type: ignore
         optim_wrapper.update_params(parsed_losses)

@@ -14,6 +14,8 @@ from mmdet3d.registry import TRANSFORMS
 from mmdet3d.structures.bbox_3d import get_box_type
 from mmdet3d.structures.points import BasePoints, get_points_type
 from pyarrow import feather
+import warnings 
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 @TRANSFORMS.register_module()
@@ -81,7 +83,12 @@ class LoadPointsFromFileFeather(BaseTransform):
             np.ndarray: An array containing point clouds data.
         """
         if pts_filename.endswith('.feather'):
-            points = feather.read_feather(pts_filename)[['x', 'y', 'z', 'intensity']].values
+            try:
+                points = feather.read_feather(pts_filename)[
+                    ['x', 'y', 'z', 'intensity', 'elongation']].values
+            except:
+                points = feather.read_feather(pts_filename)[
+                    ['x', 'y', 'z', 'intensity']].values
         else:
             try:
                 pts_bytes = get(pts_filename, backend_args=self.backend_args)
@@ -111,6 +118,7 @@ class LoadPointsFromFileFeather(BaseTransform):
         points = self._load_points(pts_file_path)
         points = points.reshape(-1, self.load_dim)
         points = points[:, self.use_dim]
+
         if self.norm_intensity:
             assert len(self.use_dim) >= 4, \
                 f'When using intensity norm, expect used dimensions >= 4, got {len(self.use_dim)}'  # noqa: E501

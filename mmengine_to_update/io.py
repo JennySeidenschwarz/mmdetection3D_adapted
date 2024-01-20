@@ -865,10 +865,6 @@ def load(file,
     
     filter_list =  percentage != 1.0 and ('train' in file or 'val' in file)
     if filter_list:
-        # split = 'train' if 'train' in file else 'val'
-        # prefix = 0 if 'train' in file else 1
-        
-        # split =  'train' if test_mode else 'val'
         prefix = 0 if not 'evaluation' in detection_type else 1
         with open(f'new_seq_splits_Waymo_Converted_fixed_val/{percentage}_{detection_type}.txt', 'r') as f:
             seqs = f.read()
@@ -888,8 +884,6 @@ def load(file,
         waymo2kitti['whole_name'] = waymo2kitti['whole_name'].astype(int)
         obj['data_list'] = [d for d in obj['data_list'] if d['sample_idx'] in waymo2kitti['whole_name'].values.tolist()]
     
-    # obj['data_list'][0]['instances'][0]['bbox_label_3d'] = 1
-    # obj['data_list'][0]['instances'][0]['bbox_label'] = 1
     if filter_list or all_car: 
         obj_updated = list()
         for d in obj['data_list']:

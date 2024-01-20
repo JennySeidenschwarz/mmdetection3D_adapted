@@ -8,6 +8,7 @@ voxel_size = [0.32, 0.32, 6]
 _point_cloud_range = [-74.88, -74.88, -2, 74.88, 74.88, 4]
 # _assign_range = [-50, -20, -0.0345, 50, 20, -0.0345]
 _assign_range = [-74.88, -74.88, -2, 74.88, 74.88, 4]
+
 model = dict(
     type='MVXFasterRCNN',
     data_preprocessor=dict(

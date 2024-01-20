@@ -1,49 +1,27 @@
-# dataset settings
-# D5 in the config name means the whole dataset is divided into 5 folds
-# We only use one fold for efficient experiments
 dataset_type = 'AV2FeatherDataset' #'WaymoDataset'
-
-data_root = '/workspace/waymo_kitti_format/kitti_format/'
-data_root_annotatons = f'/workspace/waymo_kitti_format_annotaions/kitti_format/'
-
-data_root_annotatons_dets = '/workspace/ExchangeWorkspace/detections_train_detector/'
-detection_name = 'GNN_motion_patterns_MORE_OR_LESS_FINAL_GNN_HIHI_0.1_0.1_all_egocomp_margin0.6_width25_nooracle_64_3_True_64_3_True_0.5_3.5_0.5_4_3.162277660168379e-06_0.0031622776601683794_16000_16000__NS_MG_32_LN___P___MMMDPTT___PT_/train_detector/annotations_IoU3D.feather'
-
-rel_annotations_dir = '../../waymo_kitti_format_annotaions/kitti_format'
-
-original_dataset_root = f'/workspace/Argoverse2/'
+root_dir = '/home/wiss/seidensc/Documents/project_clean_up/3DOpenWorldMOT/'
+original_dataset_root = f'{root_dir}data/Waymo_Converted/'
+flow_path = f'{root_dir}data/Waymo_Flow/'
+filtered_file_path = f'SeMoLi/data_utils/Waymo_Converted_filtered/'
+split_path = f'{root_dir}/SeMoLi/data_utils/new_seq_splits_Waymo_Converted_fixed_val/'
+filter_static_evaluation = True
+filter_static_training = True
+class_agnostic = False
 backend_args = None
 
-class_names = ['Car']
+class_names = ['TYPE_VECHICLE', 'TYPE_PEDESTRIAN', 'TYPE_CYCLIST']
 metainfo = dict(classes=class_names)
+in_channels = 5
 
 point_cloud_range = [-50, -20, -2, 50, 20, 4] # [-74.88, -74.88, -2, 74.88, 74.88, 4]
 input_modality = dict(use_lidar=True, use_camera=False)
-db_sampler = dict(
-    data_root=data_root_annotatons_dets,
-    info_path=data_root_annotatons_dets + f'debug_training',
-    data_root2=data_root_annotatons_dets,
-    info_path2=data_root_annotatons_dets + f'debug_training/waymo_dbinfos_train.pkl',
-    rate=1.0,
-    prepare=dict(
-        filter_by_difficulty=[-1],
-        filter_by_min_points=dict(Car=5, Pedestrian=10, Cyclist=10)),
-    classes=class_names,
-    sample_groups=dict(Car=15, Pedestrian=10, Cyclist=10),
-    points_loader=dict(
-        type='LoadPointsFromFile',
-        coord_type='LIDAR',
-        load_dim=4,
-        use_dim=[0, 1, 2, 3],
-        backend_args=backend_args),
-    backend_args=backend_args)
 
 train_pipeline = [
     dict(
         type='LoadPointsFromFileFeather',
         coord_type='LIDAR',
-        load_dim=6,
-        use_dim=5,
+        load_dim=in_channels,
+        use_dim=in_channels,
         backend_args=backend_args),
     dict(type='LoadAnnotations3DFeather', with_bbox_3d=True, with_label_3d=True),
     # dict(type='ObjectSample', db_sampler=db_sampler),
@@ -67,8 +45,8 @@ test_pipeline = [
     dict(
         type='LoadPointsFromFileFeather',
         coord_type='LIDAR',
-        load_dim=6,
-        use_dim=5,
+        load_dim=in_channels,
+        use_dim=in_channels,
         backend_args=backend_args),
     dict(
         type='MultiScaleFlipAug3D',
@@ -101,10 +79,10 @@ train_dataloader = dict(
         times=2,
         dataset=dict(
             type=dataset_type,
-            data_root=data_root_annotatons_dets,
-            pseudo_labels=f'{data_root_annotatons_dets}{detection_name}',
+            label_path='',
+            label_path2='',
             data_prefix=dict(
-                pts=f'{data_root}training/velodyne', sweeps='training/velodyne'),
+                pts=original_dataset_root, sweeps='training/velodyne'),
             pipeline=train_pipeline,
             modality=input_modality,
             test_mode=False,
@@ -117,7 +95,10 @@ train_dataloader = dict(
             backend_args=backend_args,
             detection_type='train_detector',
             only_matched=False,
-            load_dir='/workspace/Argoverse2/train')))
+            filter_stat_before=filter_static_training,
+            class_agnostic=class_agnostic,
+            split_path=split_path)))
+
 val_dataloader = dict(
     batch_size=1,
     num_workers=1,
@@ -126,9 +107,10 @@ val_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=False),
     dataset=dict(
         type=dataset_type,
-        data_root=data_root,
-        data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
-        pseudo_labels=f'/workspace/ExchangeWorkspace/detections_train_detector/ArgoFiltered_GT/train_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather',
+        data_prefix=dict(
+            pts=original_dataset_root, sweeps='training/velodyne'),
+        label_path='',
+        label_path2='',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -136,10 +118,10 @@ val_dataloader = dict(
         box_type_3d='LiDAR',
         backend_args=backend_args,
         detection_type='val_evaluation',
-        all_car=True,
-        filter_stat_before=False,
+        class_agnostic=class_agnostic,
+        filter_stat_before=filter_static_training,
         stat_as_ignore_region=False,
-        load_dir='/workspace/Argoverse2/val'))
+        split_path=split_path))
 
 test_dataloader = dict(
     batch_size=1,
@@ -149,9 +131,10 @@ test_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=False),
     dataset=dict(
         type=dataset_type,
-        data_root=data_root,
-        data_prefix=dict(pts='training/velodyne', sweeps='training/velodyne'),
-        pseudo_labels='/workspace/ExchangeWorkspace/detections_train_detector/ArgoFiltered_GT/val_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather', #f'/workspace/ExchangeWorkspace/detections_train_detector/ArgoFiltered_GT/train_1.0_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather',
+        data_prefix=dict(
+            pts=original_dataset_root, sweeps='training/velodyne'),
+        label_path='',
+        label_path2='',
         pipeline=eval_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -159,16 +142,20 @@ test_dataloader = dict(
         box_type_3d='LiDAR',
         backend_args=backend_args,
         detection_type='val_detector',
-        all_car=True,
-        filter_stat_before=True,
+        class_agnostic=class_agnostic,
+        filter_stat_before=filter_static_training,
         stat_as_ignore_region=False,
-        load_dir='/workspace/Argoverse2/val'))
+        split_path=split_path))
 
 val_evaluator = dict(
     type='AV2MetricFeather',
     data_root=f'{original_dataset_root}',
     backend_args=backend_args,
-    convert_kitti_format=False)
+    convert_kitti_format=False,
+    flow_path=flow_path,
+    filtered_file_path=filtered_file_path,
+    filter_static=filter_static_evaluation,
+    root_dir=root_dir)
 test_evaluator = val_evaluator
 
 vis_backends = [dict(type='LocalVisBackend')]

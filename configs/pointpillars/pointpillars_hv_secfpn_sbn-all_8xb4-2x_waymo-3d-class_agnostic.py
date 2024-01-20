@@ -1,6 +1,6 @@
 _base_ = [
     '../_base_/models/pointpillars_hv_secfpn_waymo_PC_REST.py',
-    '../_base_/datasets/waymoD5-3d-class_agnostic_pseudo.py',
+    '../_base_/datasets/waymoD5-3d-class_agnostic.py',
     '../_base_/schedules/schedule-2x.py',
     '../_base_/default_runtime.py',
 ]

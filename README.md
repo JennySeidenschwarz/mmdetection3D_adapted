@@ -1,32 +1,43 @@
 # Training downstream detector
-Directory forked from https://github.com/open-mmlab/mmdetection3d/
+Directory forked from [mmdetection3d](https://github.com/open-mmlab/mmdetection3d/). It is adapted to load feather files as input for training and evaluation on pointpillars model. The performance is automatically evaluated using the evaluation code from SeMoLi. For training we use the standard hyperparameters for pointpillars training on Waymo Open Dataset. We support training on Waymo Open Dataset and Argoverse2 dataset.
 
-## For training
-```
-./tools/train_dist.sh configs/pointpillars/pointpillars_hv_secfpn_sbn-all_8xb4-2x_waymo-3d-class_agnostic_pseudo.py <num_gpus> <percentage train_pseudo x> <percentage val> --test_detection_set=<detection set val> --train_pseudo_label_path <pseudo_labels_to_use> --auto-scale-lr
-```
-Example:
-```
-.tools/train_dist.sh configs/pointpillars/pointpillars_hv_secfpn_sbn-all_8xb4-2x_waymo-3d-class_agnostic_pseudo.py 8 0.9 1.0 --test_detection_set=val_detector --train_pseudo_label_path RE_ABLATION_MMMV_P_DP_0.9_0.9_all_egocomp_margin0.6_width25_nooracle_64_3_True_64_3_True_0.5_3.5_0.5_4_3.162277660168379e-06_0.0031622776601683794_16000__NS_MG_32_LN___P___DP___MMMV__P_/train_detector/annotations.feather --auto-scale-lr
-```
+## Installation
+If you installed the conda environment from SeMoLi, all libraries are already installed and you can run the code if you activate ```conda activate SeMoLi```. Otherwise, perpare a conda evironment running the following:
 
-Default dir for pseudo_labels /workspace/ExchangeWorkspace/detections_train_detector/
-
-## FOr testing
-```
-./tools/train_dist.sh configs/pointpillars/pointpillars_hv_secfpn_sbn-all_8xb4-2x_waymo-3d-class_agnostic_pseudo.py <num_gpus> <percentage train_pseudo x> <percentage val> --test_detection_set=<detection set val> --train_pseudo_label_path <pseudo_labels_to_use> --auto-scale-lr --test --checkpoint <checkpoint> --test_pseudo_label_path <>
-```
-Default dir for test_pseudo_labels (which is actually true labels) /workspace/ExchangeWorkspace/detections_train_detector/
-
-checkpoints stored in work_dirs
-
-
-## NGC
-ngc command for waymo:
-```
-ngc batch run --name "DEBUG" --priority NORMAL --order 50 --preempt RUNONCE --min-timeslice 0s --total-runtime 0s --ace nv-us-west-2 --instance dgx1v.16g.1.norm --commandline "sleep 10h 00m 00s" --result /workspace/result --image "nvidian/dvl/pytorch:mmdetection3d" --org nvidian --team dvl --datasetid 1608966:/workspace/waymo_kitti_format --datasetid 1608876:/workspace/Argoverse2 --datasetid 1609322:/workspace/waymo_kitti_format_annotaions --datasetid 1608604:/workspace/waymo --datasetid 1609977:/workspace/waymo_kitti_format_annotaions_av2kitti --workspace S_tnZ3IETuy3t0iSzV7Oxw:/workspace/mmdetection3d:RW --workspace MTsf2ZBURM6VoTtaCnuskg:/workspace/ExchangeWorkspace:RW --label _ml___pointpillars_INTERSECTION --label _wl___computer_vision --label __TPL_P0 --label __TPL_P1
+````
+conda create -n mmdetection3d python=3.9
+conda activate mmdetection3d
+bash setup.sh
 ```
 
-ngc command for av2:
+## Running the code
+For training and evaluation set the train and validation label paths by running:
 ```
+export TRAIN_LABELS=<train_label_path>
+export VAL_LABELS=<val_label_path>
 ```
+
+For validation, set the path to the feather file containing ground truth data. If you want to use the ```val_detector``` dataset from SeMoLi for evaluation, set the path to the feather file containing ground truth training data. If you want to use the real validation set, i.e., the ```val_evaluation``` split set the path to the file containing validation set ground truth data. 
+
+For example, if you are using this repository within the SeMoLi repository, the train and real validation set paths are given by:
+
+```
+export TRAIN_LABELS=../SeMoLi/data_utils/Waymo_Converted_filtered/train_1_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather
+export VAL_LABELS=../SeMoLi/data_utils/Waymo_Converted_filtered/val_1_per_frame_remove_non_move_remove_far_filtered_version_city_w0.feather
+```
+
+The base command for training and evaluation is given by:
+
+```
+./tools/dist_train.sh configs/pointpillars/pointpillars_hv_secfpn_sbn-all_8xb4-2x_waymo-3d-class_agnostic.py <num_gpus> <percentage_train> <percentage_val> $TRAIN_LABELS $VAL_LABELS --eval --val_detection_set=val_evaluation --auto-scale-lr
+```
+where
+- ```num_gpus``` is the number of GPUs that are used for the training
+- ```percentage_train``` is the percentage of training data you want to use for training according to SeMoLi splits
+- ```percentage_val``` is 1.0 if you want to use either ```val_detector``` or the real validation set ```val_evaluation```. If you want to use any part of the ```train_detector``` or ```train_gnn``` for evaluation, please set the percentage according to SeMoLi
+- ```eval``` if eval is set, you will only evaluate and not train
+- ```val_detection``` determines the detection split you want to use, i.e., ```val_detector``` or the real validation set ```val_gnn```
+- ```auto-scale-lr``` adapts the learning rate to the batch size according to a given base learning rate
+
+
+
