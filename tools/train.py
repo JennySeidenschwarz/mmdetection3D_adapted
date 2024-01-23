@@ -187,8 +187,9 @@ def main():
         cfg.work_dir = osp.join('./work_dirs',
                                 osp.splitext(osp.basename(args.config))[0] + \
                                     f'_{args.percentage_train}_{args.percentage_val}_{args.filter_stat_before}_{args.class_agnostic}_{args.train_detection_set}{pseudo_add}')
-    
+    print(cfg.work_dir)
     # set workdir for val and test datasets
+    cfg.train_dataloader.dataset.dataset['work_dir'] = cfg.work_dir
     cfg.val_dataloader.dataset['work_dir'] = cfg.work_dir
     cfg.test_dataloader.dataset['work_dir'] = cfg.work_dir
     cfg.val_evaluator['work_dir'] = cfg.work_dir

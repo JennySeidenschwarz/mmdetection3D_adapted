@@ -94,7 +94,6 @@ train_dataloader = dict(
             load_interval=5,
             backend_args=backend_args,
             detection_type='train_detector',
-            only_matched=False,
             filter_stat_before=filter_static_training,
             class_agnostic=class_agnostic,
             split_path=split_path)))
