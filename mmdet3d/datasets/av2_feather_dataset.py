@@ -181,9 +181,6 @@ class AV2FeatherDataset(KittiDataset):
             'version': '2',
             'info_version': '2'}
 
-        print(self.METAINFO)
-        print(self.selected_classes)
-
         super().__init__(
             data_root='',
             ann_file='',
@@ -421,6 +418,10 @@ class AV2FeatherDataset(KittiDataset):
                 lidar_path = os.path.join(
                     self.split, log_id, 'sensors/lidar', f'{time}.feather')
                 
+                if not os.path.isfile(osp.join(
+                            self.data_prefix.get('pts', ''), lidar_path)):
+                    continue
+
                 # lidar info
                 data_sample['lidar_points'] = dict()
                 data_sample['lidar_points']['lidar_path'] = osp.join(
