@@ -26,6 +26,7 @@ import sys
 sys.path.append('../')
 from SeMoLi.evaluation import eval_detection
 from SeMoLi.data_utils.splits import get_seq_list_fixed_val
+import shutil
 
 
 classes = ['Car', 'Pedestrian', 'Cyclist']
@@ -148,7 +149,7 @@ class AV2MetricFeather(KittiMetric):
                  backend_args: Optional[dict] = None,
                  idx2metainfo: Optional[str] = None, 
                  work_dir: str = 'work_dir',
-                 num_workers: int = 64,
+                 num_workers: int = 32,
                  filtered_file_path='',
                  flow_path='',
                  filter_static=True,
@@ -245,15 +246,17 @@ class AV2MetricFeather(KittiMetric):
             saving json files when jsonfile_prefix is not specified.
         """
         torch.save(results, f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
-
-        '''chunk_size = math.ceil(len(results)/self.num_workers)
+        if os.path.isdir(os.path.join(self.work_dir, 'intermediate')):
+            shutil.rmtree(os.path.join(self.work_dir, 'intermediate'))
+        os.makedirs(os.path.join(self.work_dir, 'intermediate'), exist_ok=True)
+        chunk_size = math.ceil(len(results)/self.num_workers)
         self.final_results = [results[i*chunk_size:(i+1)*chunk_size] for i in range(self.num_workers)]
         print(f'Num workers {self.num_workers} and parallel processes {len(self.final_results)}')
-        mmengine.track_parallel_progress(self.convert_to_argo, range(len(self.final_results)), self.num_workers)'''
+        mmengine.track_parallel_progress(self.convert_to_argo, range(len(self.final_results)), self.num_workers)
 
-        self.final_results = [results]
-        for idx in range(len(self.final_results)):
-            self.convert_to_argo(idx)
+        # self.final_results = [results]
+        # for idx in range(len(self.final_results)):
+        #     self.convert_to_argo(idx)
 
         # combine
         paths = glob.glob(f'{self.work_dir}/intermediate/*')
@@ -269,6 +272,9 @@ class AV2MetricFeather(KittiMetric):
 
         torch.save(self.final_results, f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
         print('Stored to ...', f'{self.work_dir}/{self.percentage}_{self.detection_type}.pth')
+        if os.path.isdir(os.path.join(self.work_dir, 'intermediate')):
+            shutil.rmtree(os.path.join(self.work_dir, 'intermediate'))
+        print('done')
 
         # evaluate using our code
         self._evaluate()
@@ -276,7 +282,6 @@ class AV2MetricFeather(KittiMetric):
     def convert_to_argo(self, idx):
         final_results = self.final_results[idx]
         argo_idx = feather.read_feather(f'{self.work_dir}/idx_to_my_idx.feather')
-        os.makedirs(os.path.join(self.work_dir, 'intermediate'), exist_ok=True)
         df = pd.DataFrame(columns=column_names)
         count = 0
         for j, res in enumerate(final_results):
@@ -294,7 +299,7 @@ class AV2MetricFeather(KittiMetric):
             for i in range(lidar_boxes.shape[0]):
                 data_row = self.parse_one_object(i, lidar_boxes, scores, labels, timestamp, log_id)
                 df.loc[len(df.index)] = data_row
-                if len(df) % 25000 == 0 and j != 0:
+                if len(df) % 5000 == 0 and j != 0:
                     print('Writing to ', os.path.join(self.work_dir, 'intermediate', f'{idx}_{count}.feather'))
                     feather.write_feather(df, os.path.join(self.work_dir, 'intermediate', f'{idx}_{count}.feather'))
                     count += 1
